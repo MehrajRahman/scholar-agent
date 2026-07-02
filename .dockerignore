@@ -1,0 +1,24 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Secrets & local config — must never enter the image layers
+.env
+.env.*
+providers.json
+.claude
+*.pem
+*.key
+
+# Not needed at runtime
+tests
+docs
+eval
+examples/*.out.json
+*.log

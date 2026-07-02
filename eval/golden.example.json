@@ -1,0 +1,8 @@
+{
+  "_comment": "Your hand-labelled 'these are genuinely good matches' set. Get opportunity ids from a `scholar run ... --out result.json` then paste the ids you'd actually apply to. precision@k then tells you how well the Matchmaker agrees with you.",
+  "k": 5,
+  "gold_opportunity_ids": [
+    "paste-real-opportunity-id-1",
+    "paste-real-opportunity-id-2"
+  ]
+}

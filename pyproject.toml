@@ -1,0 +1,66 @@
+[project]
+name = "scholar-agent"
+version = "0.1.0"
+description = "Autonomous Academic Matchmaking & Synthesis Pipeline — open-source agentic platform that finds scholarships / funded PhD positions and drafts grounded cold emails + SOPs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "scholar-agent contributors" }]
+
+dependencies = [
+    # --- Orchestration ---
+    "langgraph>=0.2.40",
+    "langchain-core>=0.3.0",
+    # --- LLM access (OpenAI-compatible -> works with vLLM / Ollama / TGI) ---
+    "openai>=1.40.0",
+    "tenacity>=8.3.0",
+    # --- Data modelling / validation ---
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    # --- Knowledge base ---
+    "neo4j>=5.20.0",
+    "qdrant-client>=1.9.0",
+    # --- Retrieval / embeddings / rerank (local, open-source) ---
+    "fastembed>=0.3.0",            # ONNX bge embeddings, no torch needed
+    "rank-bm25>=0.2.2",           # sparse / lexical leg of hybrid search
+    # --- Tools (Scout) ---
+    "httpx>=0.27.0",
+    "tavily-python>=0.3.0",
+    "trafilatura>=1.9.0",         # robust HTML -> clean text extraction
+    "pypdf>=4.2.0",               # CV / transcript parsing (linear fallback)
+    "pymupdf>=1.24",              # layout-aware (multi-column) CV parsing
+    # --- Serving layer ---
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "sse-starlette>=2.1.0",
+    "python-multipart>=0.0.9",    # CV file uploads for the web UI
+    # --- Tooling protocol (trending) ---
+    "mcp>=1.0.0",
+    # --- Observability (open-source) ---
+    "langfuse>=2.40.0",
+    "structlog>=24.1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0", "pytest-asyncio>=0.23.0", "ruff>=0.5.0", "mypy>=1.10.0"]
+# Optional: heavy JS-rendering crawler for Deep Research. Falls back to
+# trafilatura when absent, so it's not required to run the pipeline.
+deep = ["crawl4ai>=0.4.0"]
+
+[project.scripts]
+scholar = "scholar.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

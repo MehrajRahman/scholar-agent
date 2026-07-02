@@ -1,0 +1,21 @@
+# Local-development override — auto-merged by `docker compose`.
+#
+# The production compose keeps the `brains` network air-gapped (internal: true),
+# which is correct when the orchestrator ALSO runs as a container on that network.
+# But for local dev you run the API on the HOST (uvicorn in your venv), so the
+# host must reach Neo4j/Qdrant via published ports — and an internal network
+# blocks port publishing. This override makes `brains` a normal bridge for dev
+# and pins the host port bindings. Delete it (or use `-f docker-compose.yml` only)
+# to get the production air-gapped behaviour back.
+networks:
+  brains:
+    internal: false
+
+services:
+  neo4j:
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+  qdrant:
+    ports:
+      - "6333:6333"

@@ -1,0 +1,40 @@
+{
+  "name": "scholar-agent — nightly freshness + alerts",
+  "_comment": "Import into n8n (self-hosted, free). Nightly: run the DB freshness sweep, then email the result. Extend the 'Send Email' node into a deep-research refresh + 'new match / deadline soon' alert as you wire in your inbox.",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 3 * * *" }] } },
+      "name": "Every night at 03:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://orchestrator:8080/maintenance/sweep",
+        "options": {}
+      },
+      "name": "Freshness sweep",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "scholar-agent@localhost",
+        "toEmail": "you@example.com",
+        "subject": "Scholarship DB refreshed",
+        "text": "=Freshness sweep result: {{ JSON.stringify($json.swept) }}"
+      },
+      "name": "Email summary",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "Every night at 03:00": { "main": [[{ "node": "Freshness sweep", "type": "main", "index": 0 }]] },
+    "Freshness sweep": { "main": [[{ "node": "Email summary", "type": "main", "index": 0 }]] }
+  }
+}

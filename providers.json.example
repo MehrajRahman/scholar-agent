@@ -1,0 +1,61 @@
+{
+  "_comment": "Provider pool — tried top-to-bottom; on rate-limit/outage the gateway rolls to the next. Keys come from the named env vars (api_key_env), NOT this file. Verify current model ids on each provider's model page.",
+
+  "_local_setup": [
+    "1. Install Ollama:  curl -fsSL https://ollama.com/install.sh | sh",
+    "2. Pull models:     ollama pull qwen2.5:3b && ollama pull qwen2.5:7b",
+    "3. Set in .env:     OLLAMA_API_KEY=ollama  (value is ignored but SDK requires non-empty)",
+    "4. Ollama serves at http://localhost:11434/v1 automatically after install"
+  ],
+
+  "providers": [
+    {
+      "name": "ollama-local",
+      "_comment": "Primary: fully local, no rate limits, no API key, 100% OSS. Fails over to cloud if Ollama isn't running (connection refused -> _with_failover rolls to next provider).",
+      "base_url": "http://localhost:11434/v1",
+      "api_key_env": "OLLAMA_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "qwen2.5:7b",
+        "fast":  "qwen2.5:3b",
+        "scribe": "qwen2.5:7b"
+      }
+    },
+    {
+      "name": "groq",
+      "_comment": "First cloud fallback — fastest remote inference. Free tier: 30 RPM. Only reached if Ollama is down or times out.",
+      "base_url": "https://api.groq.com/openai/v1",
+      "api_key_env": "GROQ_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "llama-3.3-70b-versatile",
+        "fast":  "llama-3.1-8b-instant",
+        "scribe": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "name": "cerebras",
+      "_comment": "Second cloud fallback — also free tier, very fast on small models. Reached if both Ollama and Groq are unavailable.",
+      "base_url": "https://api.cerebras.ai/v1",
+      "api_key_env": "CEREBRAS_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "llama-3.3-70b",
+        "fast":  "llama-3.1-8b",
+        "scribe": "llama-3.3-70b"
+      }
+    },
+    {
+      "name": "openrouter",
+      "_comment": "Last resort cloud fallback — broadest model selection, pay-per-token. Only reached if all above providers fail.",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "qwen/qwen-2.5-72b-instruct",
+        "fast":  "nousresearch/hermes-3-llama-3.1-8b",
+        "scribe": "qwen/qwen-2.5-72b-instruct"
+      }
+    }
+  ]
+}

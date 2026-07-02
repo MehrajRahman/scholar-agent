@@ -1,0 +1,38 @@
+{
+  "_comment": "Copy to providers.json to enable the $0 failover pool. Tried top-to-bottom; on rate-limit/outage the gateway rolls to the next. Keys come from the named env vars (api_key_env), NOT this file. Verify current model ids on each provider's model page.",
+  "providers": [
+    {
+      "name": "groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "api_key_env": "GROQ_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "llama-3.3-70b-versatile",
+        "fast": "llama-3.1-8b-instant",
+        "scribe": "llama-3.3-70b-versatile"
+      }
+    },
+    {
+      "name": "cerebras",
+      "base_url": "https://api.cerebras.ai/v1",
+      "api_key_env": "CEREBRAS_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "llama-3.3-70b",
+        "fast": "llama-3.1-8b",
+        "scribe": "llama-3.3-70b"
+      }
+    },
+    {
+      "name": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy": "qwen/qwen-2.5-72b-instruct",
+        "fast": "nousresearch/hermes-3-llama-3.1-8b",
+        "scribe": "qwen/qwen-2.5-72b-instruct"
+      }
+    }
+  ]
+}

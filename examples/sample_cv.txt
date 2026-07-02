@@ -1,0 +1,22 @@
+Ada Researcher
+ada@example.com | github.com/adaresearcher
+
+EDUCATION
+BSc in Computer Science, East West University, 2025
+CGPA: 3.85 / 4.00
+
+RESEARCH INTERESTS
+Graph neural networks, molecular property prediction, drug discovery,
+representation learning on graphs.
+
+SKILLS
+Python, PyTorch, PyTorch Geometric, machine learning, deep learning, SQL,
+data structures, Linux.
+
+PROJECTS & PUBLICATIONS
+- "Message-Passing GNNs for ADMET prediction" — undergraduate thesis, 2025.
+- Built a Qdrant-backed semantic search engine for chemistry papers.
+
+GOALS
+Seeking a FULLY FUNDED PhD position starting Fall 2026, preferably in
+Germany or the Netherlands, in ML for drug discovery.

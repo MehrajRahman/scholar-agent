@@ -1,0 +1,38 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Secrets & local config (NEVER commit) ───────────────────────────────────
+.env
+.env.*
+!.env.example
+providers.json
+prov
+*.pem
+*.key
+
+# ── Tooling / editor / OS ───────────────────────────────────────────────────
+.claude/
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# ── Data, caches, model & pipeline outputs ──────────────────────────────────
+/data/
+node_modules/
+.cache/
+hf-cache/
+ollama_models/
+*.out.json

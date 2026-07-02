@@ -1,0 +1,125 @@
+# ============================================================================
+# scholar-agent — full stack  (Deliverable #3: architecture map)
+#
+#   ┌────────────────────────── network: brains (internal: true) ───────────┐
+#   │  vllm-heavy   vllm-fast   vllm-scribe        neo4j      qdrant         │
+#   │  (Qwen-72B)  (Nemo-12B)  (Qwen-32B)       (GraphRAG)  (vectors)        │
+#   │      ▲           ▲            ▲                ▲          ▲             │
+#   │      └───────────┴────────────┴──────┬─────────┴──────────┘            │
+#   └──────────────────────────────────────┼────────────────────────────────┘
+#                                           │  OpenAI-compatible REST
+#                ┌──────────────────────────┴───────────────────────────┐
+#                │  orchestrator  (LangGraph + FastAPI, the "Hands")      │
+#                │  — only this box is also on the internet-facing net —  │
+#                └──────────────────────────┬───────────────────────────┘
+#                                           │  network: hands (egress)
+#                                  searxng / Tavily / OpenAlex / NSF / NIH
+#
+# The "brains" network is `internal: true` => the model + DB containers have NO
+# route to the internet. Only the orchestrator bridges both networks, exactly
+# mirroring the Proxmox PCIe-passthrough air-gap design in the blueprint.
+#
+# GPU model servers live behind the `gpu` profile (need nvidia runtime). On a
+# laptop, omit the profile and point LLM_BASE_URL at an Ollama host instead.
+# ============================================================================
+
+services:
+  # ----------------------------------------------------------------- Brains
+  vllm-heavy: &vllm
+    image: vllm/vllm-openai:latest
+    profiles: ["gpu"]
+    command: ["--model", "Qwen/Qwen2.5-72B-Instruct", "--port", "8000", "--gpu-memory-utilization", "0.92"]
+    networks: [brains]
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+    volumes: ["hf-cache:/root/.cache/huggingface"]
+    ipc: host
+
+  vllm-fast:
+    <<: *vllm
+    command: ["--model", "mistralai/Mistral-Nemo-Instruct-2407", "--port", "8000"]
+
+  vllm-scribe:
+    <<: *vllm
+    command: ["--model", "Qwen/Qwen2.5-32B-Instruct", "--port", "8000"]
+
+  # ------------------------------------------------------------- Knowledge base
+  neo4j:
+    image: neo4j:5.23
+    networks: [brains]
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-please-change-me}"
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512M
+    ports: ["7474:7474", "7687:7687"]   # browser + bolt (expose for local dev)
+    volumes: ["neo4j-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    networks: [brains]
+    ports: ["6333:6333"]
+    volumes: ["qdrant-data:/qdrant/storage"]
+
+  # --------------------------------------------------- Scout's search backend
+  searxng:
+    image: searxng/searxng:latest
+    networks: [hands]
+    environment:
+      SEARXNG_BASE_URL: "http://searxng:8080/"
+    ports: ["8888:8080"]
+
+  # ------------------------------------------------------------ The "Hands"
+  orchestrator:
+    build: .
+    networks: [brains, hands]     # the ONLY service bridging both networks
+    env_file: [.env]
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      QDRANT_URL: http://qdrant:6333
+      SEARXNG_URL: http://searxng:8080
+    depends_on:
+      neo4j: { condition: service_healthy }
+      qdrant: { condition: service_started }
+    ports: ["8080:8080"]
+    command: ["uvicorn", "scholar.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+  # ----------------------------------------- Observability (optional profile)
+  langfuse:
+    image: langfuse/langfuse:latest
+    profiles: ["obs"]
+    networks: [hands, brains]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-db:5432/postgres
+      NEXTAUTH_SECRET: change-me
+      SALT: change-me
+      NEXTAUTH_URL: http://localhost:3000
+    ports: ["3000:3000"]
+    depends_on: [langfuse-db]
+
+  langfuse-db:
+    image: postgres:16
+    profiles: ["obs"]
+    networks: [brains]
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes: ["langfuse-db:/var/lib/postgresql/data"]
+
+networks:
+  brains:
+    internal: true     # air-gapped: no internet egress for models + DBs
+  hands:
+    driver: bridge     # internet-facing: search / scraping / academic APIs
+
+volumes:
+  hf-cache:
+  neo4j-data:
+  qdrant-data:
+  langfuse-db:
