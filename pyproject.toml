@@ -46,6 +46,15 @@ dev = ["pytest>=8.2.0", "pytest-asyncio>=0.23.0", "ruff>=0.5.0", "mypy>=1.10.0"]
 # Optional: heavy JS-rendering crawler for Deep Research. Falls back to
 # trafilatura when absent, so it's not required to run the pipeline.
 deep = ["crawl4ai>=0.4.0"]
+# Web-app layer (accounts + persistent application tracking). Not needed for the
+# pipeline-only / CLI / MCP usage; install with: pip install -e ".[web]"
+web = [
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.13.0",
+    "psycopg[binary]>=3.1.0",     # Postgres driver (SQLite works with no driver)
+    "passlib[argon2]>=1.7.4",     # password hashing
+    "pyjwt>=2.8.0",               # session tokens
+]
 
 [project.scripts]
 scholar = "scholar.cli:main"

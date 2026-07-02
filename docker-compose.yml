@@ -68,6 +68,22 @@ services:
     ports: ["6333:6333"]
     volumes: ["qdrant-data:/qdrant/storage"]
 
+  # System of record for the web app: users, applications, professors, tasks.
+  postgres:
+    image: postgres:16
+    networks: [brains]
+    environment:
+      POSTGRES_USER: scholar
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-scholar-dev-pw}"
+      POSTGRES_DB: scholar
+    ports: ["5432:5432"]   # exposed for local dev; DATABASE_URL points here
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scholar"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # --------------------------------------------------- Scout's search backend
   searxng:
     image: searxng/searxng:latest
@@ -122,4 +138,5 @@ volumes:
   hf-cache:
   neo4j-data:
   qdrant-data:
+  postgres-data:
   langfuse-db:

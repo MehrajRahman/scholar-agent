@@ -19,3 +19,6 @@ services:
   qdrant:
     ports:
       - "6333:6333"
+  postgres:
+    ports:
+      - "5432:5432"

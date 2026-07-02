@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # lightest (~90MB); BAAI/bge-reranker-base is heavier but stronger.
     rerank_model: str = Field("Xenova/ms-marco-MiniLM-L-6-v2", alias="RERANK_MODEL")
 
+    # --- Web-app system of record (accounts + application tracking) ---
+    # SQLite by default = zero-setup local dev; point at Postgres for the real app.
+    database_url: str = Field("sqlite:///./scholar.db", alias="DATABASE_URL")
+    # Signing secret for auth tokens (override in production!).
+    auth_secret: str = Field("dev-insecure-change-me", alias="AUTH_SECRET")
+
     # --- Knowledge base ---
     neo4j_uri: str = Field("bolt://localhost:7687", alias="NEO4J_URI")
     neo4j_user: str = Field("neo4j", alias="NEO4J_USER")

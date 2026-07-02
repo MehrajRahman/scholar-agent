@@ -31,6 +31,8 @@ prov
 
 # ── Data, caches, model & pipeline outputs ──────────────────────────────────
 /data/
+*.db
+*.sqlite3
 node_modules/
 .cache/
 hf-cache/
