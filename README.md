@@ -1,144 +1,184 @@
 # scholar-agent
 
-**Autonomous Academic Matchmaking & Synthesis Pipeline** — a fully open-source,
-agentic platform that discovers funded scholarships / PhD / Master's positions
-and drafts **grounded** (non-hallucinated) cold emails and Statements of Purpose.
+**An autonomous research partner for scholarship & PhD applicants.**
+Give it your CV — it searches the live web for funded scholarships, PhD, and
+Master's positions, ranks them against your actual profile, and drafts
+**grounded** (fact-checked, non-hallucinated) cold emails and Statements of
+Purpose for your best matches.
 
-This repository is the complete build-out of the architecture blueprint in
-[SKILLS/skills.md](SKILLS/skills.md). It delivers all three requested artifacts —
-the LangGraph multi-agent boilerplate, the Neo4j Cypher schema, and the Docker
-Compose architecture map — and folds in the agentic-AI patterns that matter in
-2026 (see [What's "trending" here](#whats-trending-here-and-why)).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)](tests/)
 
-> 📖 **New here? Read [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)** — a
-> full, in-depth narrative of *what* this is and *how* every piece works, with a
-> step-by-step trace of one CV flowing through all five agents.
+> 📖 **New here?** [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) walks
+> through one CV flowing end-to-end through every agent. [SKILLS/skills.md](SKILLS/skills.md)
+> is the original architecture design doc this build follows.
 
 ---
 
-## The pipeline at a glance
+## Why this exists
 
-```
- CV / transcript ─► Profiler ─► Scout ─► Matchmaker ─► Scribe ⇄ Quality Gate ─► bundles
-   (ingest.py)      (Agent 1)  (Agent 2) (Agent 3)    (Agent 4)  (Agent 5)
-                       │          │          │            └──── reflection loop ────┘
-                  StudentProfile  │     GraphRAG score      (regenerate until grounded
-                              web + OpenAlex   (semantic ⊕   or retry budget spent)
-                              + NSF/NIH        graph ⊕ rules)
+Finding funded opportunities abroad means grinding through dozens of
+university portals, professor pages, and scholarship boards by hand, then
+writing a tailored email and SOP for each one. This automates the grind
+without automating the judgment: every match is scored with real signals
+(not vibes), every generated claim is checked against your CV and the
+professor's actual public record, and nothing is ever sent without your
+review.
+
+## Features
+
+- 🔎 **Deep research agent** — plans search queries, crawls the live web
+  (Tavily server-rendered content, ranked by relevance + source reputation),
+  and extracts structured opportunities — not just a list of links.
+- 🧠 **GraphRAG matchmaking** — fuses dense + BM25 hybrid retrieval,
+  cross-encoder reranking, and Neo4j graph-proximity scoring with an LLM
+  judgment call into one calibrated 0–100 score.
+- ✍️ **Grounded drafting** — a Scribe/Quality-Gate reflection loop writes a
+  cold email + SOP, decomposes them into atomic claims, and rewrites until
+  every claim is backed by evidence (or the retry budget runs out).
+- 📄 **Layout-aware CV parsing** — multi-column academic CVs are read in the
+  correct column order, not scrambled left-to-right.
+- 🌐 **Web UI** — live progress while it works, source links + funding/
+  deadline/university on every result, and on-demand "generate email + SOP"
+  for any match without re-running the whole pipeline.
+- 🔌 **Provider-agnostic brains** — Ollama, Groq, OpenRouter, Cerebras, or any
+  OpenAI-compatible endpoint, with automatic failover between them.
+- 🧪 **Actually tested** — 48 offline unit tests plus a live health-check
+  (`make check`) that verifies every runtime dependency before you run it.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    CV[CV / Transcript] --> P["1 · Profiler"]
+    P --> S["2 · Scout"]
+    S --> M["3 · Matchmaker"]
+    M --> W["4 · Scribe"]
+    W <-->|reflect & retry| Q["5 · Quality Gate"]
+    Q --> R[Grounded bundles:<br/>ranked matches + drafts]
+
+    classDef agent fill:#4f46e5,stroke:#4338ca,color:#fff
+    class P,S,M,W,Q agent
 ```
 
-| Agent | Role | Model tier | Output contract |
-|-------|------|-----------|-----------------|
-| 1. **Profiler** | Parse messy CV/transcript → structured profile | `FAST` | `StudentProfile` |
-| 2. **Scout** | Plan searches, scrape, query OpenAlex/NSF/NIH, index | `FAST` | `Opportunity[]` |
-| 3. **Matchmaker** | Fuse semantic + graph + eligibility into 0–100 | `HEAVY` | `MatchResult[]` |
-| 4. **Scribe** | Draft cold email + SOP, grounded in evidence | `SCRIBE` | `SynthesisBundle` |
-| 5. **Quality Gate** | Claim-by-claim factuality audit; reject + feedback | `HEAVY` | `GroundednessReport` |
+| Agent | Role | Output |
+|---|---|---|
+| **1. Profiler** | Parses messy CV/transcript text into a structured profile | `StudentProfile` |
+| **2. Scout** | Plans queries, searches + crawls the live web, extracts opportunities | `Opportunity[]` |
+| **3. Matchmaker** | Fuses semantic + graph + eligibility signals into a calibrated score | `MatchResult[]` |
+| **4. Scribe** | Drafts a cold email + SOP grounded in your profile and the real record | `SynthesisBundle` |
+| **5. Quality Gate** | Audits every claim; rejects with feedback until grounded | `GroundednessReport` |
 
 Each agent is a pure `async (state) -> partial_state` LangGraph node in
-[src/scholar/agents/](src/scholar/agents/). The state machine — including the
-bounded Scribe⇄Quality-Gate reflection loop and the map over the shortlist — is
+[src/scholar/agents/](src/scholar/agents/). The full state machine — including
+the bounded Scribe⇄Quality-Gate reflection loop and the shortlist map — is
 wired in [src/scholar/graph_app.py](src/scholar/graph_app.py).
+
+### Matching signals
+
+Ranking an opportunity is not a single similarity score — it's four
+independent signals fused together:
+
+1. **Semantic** — dense (bge) + BM25 hybrid retrieval, fused with Reciprocal
+   Rank Fusion, then re-scored by a cross-encoder for precision.
+2. **Graph proximity** — shared-skill path coverage between you and the
+   opportunity, computed as a Neo4j Cypher traversal, not an LLM guess.
+3. **Eligibility** — GPA / region / funding constraints, checked in the graph
+   and surfaced as a soft signal (scraped metadata is often incomplete, so it
+   informs the score rather than hard-gating it).
+4. **LLM judgment** — a calibrated 0–100 score + rationale, explicitly
+   instructed to reject keyword collisions across fields (e.g. "graph neural
+   networks" vs. "graph theory").
 
 ---
 
-## Deliverables (mapped to the blueprint's §6)
+## Web UI
 
-1. **LangGraph multi-agent boilerplate** → [src/scholar/graph_app.py](src/scholar/graph_app.py) + [src/scholar/agents/](src/scholar/agents/)
-2. **Neo4j Cypher schema** → [infra/neo4j/schema.cypher](infra/neo4j/schema.cypher) (constraints, property + native vector indexes) with [seed data](infra/neo4j/seed.cypher)
-3. **Docker Compose / architecture map** → [docker-compose.yml](docker-compose.yml)
+`make api` serves a zero-build web app (Alpine.js + Tailwind, no bundler) at
+`http://localhost:8080/app/`:
 
-### The air-gap, realised in Docker networks
+- Upload a CV (PDF or text) and pick fast (DB-only) or deep (live web) mode
+- Watch live counters — pages found, opportunities scored, drafts ready —
+  while the pipeline runs
+- Browse ranked matches with source links, funding, deadline, and university
+- Generate a cold email + SOP for any match on demand, with copy/download
 
-The blueprint's "models are air-gapped, only the orchestrator touches the
-internet" security model is enforced concretely: the model servers and databases
-sit on a `brains` network declared `internal: true` (no egress), and **only** the
-orchestrator is dual-homed onto the internet-facing `hands` network.
+<!-- Add a screenshot or short GIF of the UI here once you have one. -->
 
-```
-┌───────────── network: brains (internal: true — NO internet) ─────────────┐
-│  vllm-heavy   vllm-fast   vllm-scribe        neo4j        qdrant          │
-│  Qwen2.5-72B  Nemo-12B    Qwen2.5-32B      (GraphRAG)   (vectors)         │
-└───────────────────────────────┬──────────────────────────────────────────┘
-                                 │ OpenAI-compatible REST (/v1/chat/completions)
-                    ┌────────────┴─────────────┐
-                    │  orchestrator (Hands)     │  LangGraph + FastAPI + MCP
-                    └────────────┬─────────────┘
-                                 │ network: hands (egress)
-                       SearXNG · Tavily · OpenAlex · NSF · NIH
-```
-
-On bare metal this maps 1:1 onto the Proxmox design: each `vllm-*` service is an
-Ubuntu VM with PCIe-passthrough GPUs; the orchestrator is the Docker/K8s
-"Hands" layer.
+It's also usable headless — a CLI (`scholar run`), a REST API
+(`/pipeline/run`, `/pipeline/stream` for SSE), and an MCP server
+(`python -m scholar.mcp_server`) so the pipeline plugs into Claude Desktop,
+IDEs, or other agents.
 
 ---
 
 ## Quick start
 
-### Option A — laptop / no GPU (Ollama as the "brains")
-```bash
-# 1. Serve open models locally
-ollama pull qwen2.5:32b && ollama pull mistral-nemo && ollama serve
+Requires Docker, Python 3.11+, and either [Ollama](https://ollama.com) (free,
+local) or an API key from a hosted provider (Groq's free tier works well).
 
-# 2. Point the orchestrator at Ollama
+```bash
+# 1. Clone and install
+git clone https://github.com/<you>/scholar-agent.git
+cd scholar-agent
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# 2. Configure — copy the templates and fill in what you use
 cp .env.example .env
-#   LLM_BASE_URL=http://host.docker.internal:11434/v1
-#   MODEL_HEAVY=qwen2.5:32b   MODEL_FAST=mistral-nemo   MODEL_SCRIBE=qwen2.5:32b
+cp providers.json.example providers.json   # optional: multi-provider failover
 
-# 3. Bring up DBs + orchestrator (no GPU profile)
-make up && make schema && make seed
+# 3. Local model (skip if you're using a hosted provider only)
+ollama pull qwen2.5:7b
 
-# 4. Run the pipeline on the sample CV
-make run            # or: scholar run examples/sample_cv.txt --query "funded PhD, EU, ML"
+# 4. Bring up the knowledge base
+docker compose up -d neo4j qdrant
+
+# 5. Verify everything is reachable
+make check
+
+# 6. Run it
+make api            # web UI at http://localhost:8080/app/
+# or: make run       # CLI, on the bundled sample CV
 ```
 
-### Option B — full GPU stack (vLLM brains)
-```bash
-cp .env.example .env          # set NEO4J_PASSWORD, point LLM_BASE_URL at vllm-heavy
-make brains                   # docker compose --profile gpu up -d --build
-make schema && make seed
-curl -s localhost:8080/health
-```
-
-### Use it three ways
-```bash
-scholar run examples/sample_cv.txt --query "ML, Netherlands"     # CLI
-curl -XPOST localhost:8080/pipeline/run -d '{"documents":["..."]}' # REST
-python -m scholar.mcp_server                                       # MCP (stdio)
-```
-The `/pipeline/stream` endpoint emits Server-Sent Events per node for live UIs.
+`providers.json` controls the LLM failover order (see
+[providers.json.example](providers.json.example) for Ollama / Groq /
+OpenRouter / Cerebras templates) — requests try each provider top-to-bottom
+and roll over on a rate limit or outage, so a $0 setup survives real usage.
 
 ---
 
-## What's "trending" here (and why)
+## Production topology (air-gapped brains)
 
-The blueprint asked for the state of the art; these are the deliberate, current
-choices layered on top of it:
+The `docker-compose.yml` full stack keeps model servers and databases on an
+internal Docker network with no internet egress — only the orchestrator
+bridges to the outside world:
 
-- **Structured outputs everywhere** — every agent returns a validated Pydantic
-  model via constrained/guided JSON decoding (`guided_json` on vLLM), so no
-  agent re-parses another's free text. See [llm/client.py](src/scholar/llm/client.py).
-- **Hybrid retrieval + cross-encoder rerank** — dense (bge) ⊕ BM25 fused with
-  Reciprocal Rank Fusion, then `bge-reranker-v2-m3` for precision. Pure vector
-  search is no longer enough. See [kb/vectors.py](src/scholar/kb/vectors.py).
-- **True GraphRAG** — eligibility (GPA/region/funding) and the *graph proximity*
-  score are Cypher traversals, not LLM guesses, so the system never recommends
-  something the student can't get. See [kb/graph.py](src/scholar/kb/graph.py).
-- **Reflection / self-correction loop** — the Quality Gate decomposes each draft
-  into atomic claims and bounces it back to the Scribe with targeted feedback
-  until grounded (bounded by `MAX_REFLECTION_LOOPS`). This is the anti-
-  hallucination guarantee, made operational.
-- **Tiered model routing** — right model for the job (72B only for reasoning/
-  verification; 12B for extraction/tools). See [llm/router.py](src/scholar/llm/router.py).
-- **MCP server** — the platform is also an MCP *provider*, so its tools and the
-  whole pipeline plug into Claude Desktop / IDEs / other agents. See
-  [mcp_server.py](src/scholar/mcp_server.py).
-- **Local, torch-free embeddings** — `fastembed` (ONNX) keeps the Hands
-  container light; GPUs stay reserved for the Brains.
-- **Observability built in** — `structlog` JSON logs + optional self-hosted
-  Langfuse tracing, both no-op when unconfigured. See [observability.py](src/scholar/observability.py).
-- **CPU/GPU split & air-gapped networking** — encoded in `docker-compose.yml`.
+```mermaid
+flowchart TB
+    subgraph brains["brains network — internal only, no internet"]
+        direction LR
+        llm["vLLM / Ollama<br/>(model servers)"]
+        neo4j[("Neo4j<br/>GraphRAG")]
+        qdrant[("Qdrant<br/>vectors")]
+    end
+    subgraph hands["hands network — internet egress"]
+        direction LR
+        search["Tavily / SearXNG"]
+        academic["OpenAlex / NSF / NIH"]
+    end
+    orchestrator["orchestrator<br/>LangGraph + FastAPI"]
+    orchestrator -->|OpenAI-compatible REST| brains
+    orchestrator --> hands
+```
+
+On bare metal this maps onto a Proxmox-style layout: each model server is a
+VM with PCIe-passthrough GPU, and the orchestrator is the only component that
+needs a route to the internet. GPU model servers run behind the `gpu` Compose
+profile (`make brains`); on a laptop, point `providers.json` at Ollama instead.
 
 ---
 
@@ -146,48 +186,57 @@ choices layered on top of it:
 
 ```
 src/scholar/
-├── config.py            # typed settings (pydantic-settings)
-├── observability.py     # structlog + optional Langfuse
-├── ingest.py            # PDF/txt loaders (step 1: context ingestion)
-├── state.py             # LangGraph PipelineState (TypedDict + reducers)
-├── graph_app.py         # the state machine: nodes, edges, reflection loop
-├── cli.py               # `scholar run ...`
-├── mcp_server.py        # MCP provider (tools + full pipeline)
-├── schemas/             # Pydantic contracts shared by all agents
-├── llm/                 # OpenAI-compatible client + tiered router
-├── kb/                  # embeddings, Qdrant hybrid search, Neo4j GraphRAG
-├── tools/               # web_search, openalex, nsf/nih, scraper (Scout's hands)
-├── agents/              # the 5 agents + prompts
-└── api/                 # FastAPI (run + SSE stream)
-infra/neo4j/             # schema.cypher + seed.cypher (Deliverable #2)
-docker-compose.yml       # full stack + air-gap networks (Deliverable #3)
-tests/test_smoke.py      # offline tests (no infra needed)
+├── config.py          typed settings (pydantic-settings)
+├── ingest.py           CV/transcript loaders — layout-aware PDF parsing
+├── state.py             LangGraph PipelineState
+├── graph_app.py          the state machine: nodes, edges, reflection loop
+├── cli.py                 `scholar run ...`
+├── mcp_server.py           MCP provider (tools + full pipeline)
+├── schemas/                 Pydantic contracts shared by all agents
+├── llm/                      OpenAI-compatible client, tiered router, failover pool
+├── kb/                         embeddings, Qdrant hybrid search, Neo4j GraphRAG
+├── tools/                       web search, scraping, ranking, OpenAlex/NSF/NIH
+├── agents/                       the 5 agents + prompt registry
+└── api/                           FastAPI (REST + SSE stream + web UI)
+web/                    zero-build Alpine.js/Tailwind frontend
+infra/neo4j/            schema.cypher + seed.cypher
+docker-compose.yml      full stack + air-gapped network topology
+tests/                  48 offline unit tests
+scripts/healthcheck.py  live system health-check (`make check`)
 ```
 
 ## Development & testing
+
 ```bash
 make dev      # editable install + dev extras
-make test     # offline unit tests (no infra needed)
+make test     # 48 offline unit tests — no infra needed
 make check    # LIVE health-check: Qdrant, Neo4j, LLM providers, search, embeddings
 make lint     # ruff + mypy
 ```
+
 `make check` is the fastest way to answer *"is my whole system working?"* — it
-pings every runtime dependency and exits non-zero if anything critical is down.
-Run `make check ARGS=--full` to also load the embedding model.
+pings every runtime dependency and exits non-zero if anything critical is
+down. Run `make check ARGS=--full` to also load the embedding model.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) if you'd like to contribute.
 
 ## Security
+
 Secrets (`.env`, `providers.json`) are git-ignored — copy the `*.example`
 templates and keep real keys out of version control. If a key has ever been
 exposed, **rotate it**. See [SECURITY.md](SECURITY.md) for the full policy and
 the human-in-the-loop / air-gap safeguards.
 
 ## Notes & honest limitations
-- The wiring, contracts, graph schema and infra are complete and the tests pass;
-  a live end-to-end run needs reachable model servers (Ollama/vLLM), Neo4j and
-  Qdrant (`make check` verifies these).
-- Respect target sites' robots.txt / ToS when scraping, and the etiquette of the
-  OpenAlex/NSF/NIH APIs (the `OPENALEX_MAILTO` polite pool is preconfigured).
-- Generated emails/SOPs are **drafts for human review**, never auto-send.
+
+- A live end-to-end run needs reachable model servers (Ollama or a hosted
+  provider), Neo4j, and Qdrant — `make check` verifies all three.
+- Respect target sites' robots.txt / ToS when scraping, and the etiquette of
+  the OpenAlex/NSF/NIH APIs (the `OPENALEX_MAILTO` polite pool is
+  preconfigured).
+- Generated emails and SOPs are **drafts for your review** — the system never
+  auto-sends anything.
 
 ## License
+
 [MIT](LICENSE) © 2026 Mehraj Rahman
