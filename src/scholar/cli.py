@@ -37,8 +37,9 @@ def main() -> None:
         docs = load_documents(args.files)
         artifacts = [a.strip() for a in args.artifacts.split(",") if a.strip()]
         final = asyncio.run(run_pipeline(docs, args.query, mode=args.mode, artifacts=artifacts))
+        profile = final.get("profile")
         result = {
-            "profile": final.get("profile").model_dump() if final.get("profile") else None,
+            "profile": profile.model_dump() if profile else None,
             "matches": [m.model_dump() for m in final.get("matches", [])],
             "bundles": [b.model_dump() for b in final.get("bundles", [])],
             "kit_artifacts": [a.model_dump() for a in final.get("kit_artifacts", [])],

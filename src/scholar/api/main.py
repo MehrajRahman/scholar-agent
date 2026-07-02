@@ -12,6 +12,7 @@ Endpoints:
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -26,6 +27,7 @@ from ..config import get_settings
 from ..graph_app import get_app, run_pipeline
 from ..kb import get_graph, get_vectors
 from ..observability import configure_logging, get_logger
+from ..state import PipelineState
 
 log = get_logger("api")
 _WEB_DIR = Path(__file__).resolve().parents[3] / "web"
@@ -55,7 +57,7 @@ def _dump(value: Any) -> Any:
     return value
 
 
-def _progress_payload(state: dict) -> dict:
+def _progress_payload(state: Mapping[str, Any]) -> dict:
     """Live counts streamed mid-run so the UI shows real progress."""
     return {
         "opportunities": len(state.get("opportunities", []) or []),
@@ -66,7 +68,7 @@ def _progress_payload(state: dict) -> dict:
     }
 
 
-def _result_payload(state: dict) -> dict:
+def _result_payload(state: Mapping[str, Any]) -> dict:
     return {
         "profile": _dump(state.get("profile")),
         "matches": _dump(state.get("matches", [])),
@@ -142,7 +144,7 @@ async def draft(req: DraftRequest) -> dict:
         return {"error": "opportunity not found in knowledge base"}
 
     # Reuse the Scribe by handing it a one-item shortlist.
-    state = {
+    state: PipelineState = {
         "profile": profile,
         "shortlist": [opp],
         "opportunities": [opp],
@@ -156,15 +158,13 @@ async def draft(req: DraftRequest) -> dict:
             return {"error": "draft generation failed"}
         kit_artifacts: list = []
         if req.artifacts:
-            kit_out = await kit_node(
-                {
-                    "profile": profile,
-                    "opportunities": [opp],
-                    "bundles": [bundle],
-                    "artifacts_requested": req.artifacts,
-                }
-            )
-            kit_artifacts = _dump(kit_out.get("kit_artifacts", []))
+            kit_state: PipelineState = {
+                "profile": profile,
+                "opportunities": [opp],
+                "bundles": [bundle],
+                "artifacts_requested": req.artifacts,
+            }
+            kit_artifacts = _dump((await kit_node(kit_state)).get("kit_artifacts", []))
     except Exception as exc:  # noqa: BLE001 - surface a clean error to the UI
         log.warning("draft_failed", opp_id=req.opportunity_id, error=str(exc))
         return {"error": str(exc)}

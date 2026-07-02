@@ -35,15 +35,13 @@ make check
 ## Before you open a PR
 
 ```bash
-make test     # 48 offline unit tests must pass — enforced in CI
-ruff check src tests   # must be clean — enforced in CI
-mypy src                # best-effort: don't introduce NEW errors in files you touch
+make lint     # ruff + mypy — both must be clean (enforced in CI)
+make test     # 48 offline unit tests — must pass (enforced in CI)
 ```
 
-CI currently gates on tests + ruff. `mypy` still has pre-existing type debt in a
-few modules (mostly missing third-party stubs and `Optional`-narrowing gaps) —
-it's not CI-blocking yet, but please don't add to it, and cleanup PRs for
-existing errors are very welcome.
+CI gates on `ruff`, `mypy`, and `pytest` — keep all three green. The codebase is
+fully type-checked (`mypy src` is clean), so please keep it that way in any files
+you touch.
 
 If you added new behavior, **add a test** — see `tests/` for the existing
 style (pure/offline unit tests grouped by module: `test_ranking.py`,

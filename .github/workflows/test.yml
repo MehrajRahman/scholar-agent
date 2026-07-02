@@ -23,5 +23,8 @@ jobs:
       - name: Ruff (lint)
         run: ruff check src tests
 
+      - name: Mypy (type check)
+        run: mypy src
+
       - name: Pytest (48 offline unit tests — no infra needed)
         run: pytest -q

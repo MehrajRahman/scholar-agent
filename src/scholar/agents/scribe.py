@@ -35,12 +35,13 @@ async def scribe_node(state: PipelineState) -> dict:
     # Ground professor claims in the real record stored by the Scout.
     prof_record = await get_graph().professor_record(opp.id)
     feedback = ""
-    if state.get("review") and not state["review"].approved:
+    review = state.get("review")
+    if review and not review.approved:
         feedback = (
             "\n\nREVIEWER FEEDBACK — fix exactly these issues:\n"
-            + state["review"].feedback
+            + review.feedback
             + "\nHallucinations to remove: "
-            + "; ".join(state["review"].hallucinations)
+            + "; ".join(review.hallucinations)
         )
 
     user = (

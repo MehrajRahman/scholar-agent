@@ -61,6 +61,18 @@ where = ["src"]
 line-length = 100
 target-version = "py311"
 
+[tool.mypy]
+python_version = "3.11"
+# The pydantic plugin teaches mypy that model/settings fields with defaults or
+# env sources are optional at call sites (fixes the false "missing named
+# argument" errors on Settings() / BaseModel()).
+plugins = ["pydantic.mypy"]
+
+# Third-party libs that ship no type stubs / py.typed marker.
+[[tool.mypy.overrides]]
+module = ["fitz", "rank_bm25", "langfuse", "langfuse.*", "mcp", "mcp.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

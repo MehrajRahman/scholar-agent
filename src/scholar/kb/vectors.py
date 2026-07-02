@@ -261,10 +261,14 @@ class VectorStore:
             query=qvec, 
             limit=top_k
         )
-        dense = response.points
-        
-        dense_ids = [h.payload["opp_id"] for h in dense]
-        corpus = [(h.payload["opp_id"], h.payload.get("text", "")) for h in dense]
+        # Keep only points that actually carry a payload with our opp_id.
+        dense_pairs = [
+            (p["opp_id"], p.get("text", ""))
+            for h in response.points
+            if (p := h.payload) and "opp_id" in p
+        ]
+        dense_ids = [oid for oid, _ in dense_pairs]
+        corpus = dense_pairs
 
         # BM25 over the same candidate pool (cheap, no separate sparse index).
         if corpus:
