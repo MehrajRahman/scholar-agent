@@ -75,6 +75,20 @@ def _is_junk(text: str) -> bool:
 
 # ── Main fetcher ─────────────────────────────────────────────────────────────
 
+# A realistic browser fingerprint. A bot-looking User-Agent (e.g. "scholar-agent")
+# is an instant 403 on many university/scholarship directories; sending normal
+# browser headers clears the trivial gate-keepers (it won't defeat a full
+# Cloudflare JS challenge — those pages are better covered by Tavily raw_content).
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
 async def fetch_clean_text(url: str, max_chars: int = 8000) -> str:
     """Download ``url`` and extract the main article/body text.
 
@@ -83,7 +97,7 @@ async def fetch_clean_text(url: str, max_chars: int = 8000) -> str:
     """
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            r = await client.get(url, headers={"User-Agent": "scholar-agent/0.1"})
+            r = await client.get(url, headers=_BROWSER_HEADERS)
             r.raise_for_status()
             content_type = r.headers.get("content-type", "").lower()
             raw_bytes = r.content
