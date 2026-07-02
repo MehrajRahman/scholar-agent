@@ -22,3 +22,9 @@ python-multipart>=0.0.9
 mcp>=1.0.0
 langfuse>=2.40.0
 structlog>=24.1.0
+
+# --- Optional extras (NOT installed by this file — install on demand) ---
+# Dev tooling (pytest, ruff, mypy):      pip install -e ".[dev]"
+# Headless-browser crawler (crawl4ai):   pip install -e ".[deep]" && crawl4ai-setup
+#   Enables JS/Cloudflare-heavy pages in Deep Research. Heavy (downloads Chromium)
+#   and auto-detected at runtime — recommended only on a GPU/desktop machine.
