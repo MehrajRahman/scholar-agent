@@ -38,7 +38,8 @@ def test_graph_compiles_and_has_nodes():
     app = build_graph()
     nodes = set(app.get_graph().nodes)
     for expected in {
-        "profiler", "db_fetch", "deep_scout", "matchmaker", "scribe", "quality_gate", "commit"
+        "profiler", "db_fetch", "deep_scout", "critic",
+        "matchmaker", "scribe", "quality_gate", "commit",
     }:
         assert expected in nodes
 

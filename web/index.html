@@ -538,6 +538,7 @@
             {id:'profiler', icon:'📄', label:'Reading your CV', state:'idle'},
             deep ? {id:'deep_scout', icon:'🔍', label:'Researching the live web', state:'idle'}
                  : {id:'db_fetch', icon:'🗂️', label:'Searching the knowledge base', state:'idle'},
+            ...(deep ? [{id:'critic', icon:'🔎', label:'Verifying details & deadlines', state:'idle'}] : []),
             {id:'matchmaker', icon:'🎯', label:'Scoring & ranking matches', state:'idle'},
             {id:'scribe', icon:'✍️', label:'Drafting your application', state:'idle'},
             {id:'quality_gate', icon:'🛡️', label:'Fact-checking every claim', state:'idle'},

@@ -9,6 +9,7 @@ fuzzy, so a cross-encoder re-scores the top candidates for precision.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from ..config import get_settings
@@ -25,6 +26,11 @@ class Embedder:
         self._reranker = None
         self._model_name = s.embed_model
         self._rerank_name = s.rerank_model
+        # Surface an optional HF token so huggingface_hub authenticates model
+        # downloads (higher rate limits, faster pulls). No-op if unset.
+        if s.hf_token:
+            os.environ.setdefault("HF_TOKEN", s.hf_token)
+            os.environ.setdefault("HUGGING_FACE_HUB_TOKEN", s.hf_token)
 
     # Lazy init keeps import time + test startup fast.
     def _ensure_text(self):

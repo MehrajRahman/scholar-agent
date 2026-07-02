@@ -3,6 +3,7 @@
 Keeping agents as plain functions (not classes) is the idiomatic LangGraph
 style and makes every node independently unit-testable.
 """
+from .critic import critic_node
 from .deep_scout import deep_scout_node
 from .matchmaker import matchmaker_node
 from .profiler import profiler_node
@@ -14,6 +15,7 @@ __all__ = [
     "profiler_node",
     "scout_node",
     "deep_scout_node",
+    "critic_node",
     "matchmaker_node",
     "scribe_node",
     "quality_gate_node",

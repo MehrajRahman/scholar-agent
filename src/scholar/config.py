@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = Field(None, alias="TAVILY_API_KEY")
     searxng_url: str | None = Field(None, alias="SEARXNG_URL")
     openalex_mailto: str = Field("anon@example.com", alias="OPENALEX_MAILTO")
+    # Optional Hugging Face token — faster, un-rate-limited fastembed model
+    # downloads for the local embedder + cross-encoder reranker.
+    hf_token: str | None = Field(None, alias="HF_TOKEN")
 
     # --- Observability ---
     langfuse_public_key: str | None = Field(None, alias="LANGFUSE_PUBLIC_KEY")
@@ -59,6 +62,16 @@ class Settings(BaseSettings):
     deep_depth: int = Field(2, alias="DEEP_DEPTH")        # plan + reflect-and-expand rounds
     deep_max_pages: int = Field(10, alias="DEEP_MAX_PAGES")  # pages crawled/round
     stale_ttl_days: int = Field(21, alias="STALE_TTL_DAYS")
+
+    # Recursive crawling (crawl4ai DFS). 0 = off (single-page, laptop default).
+    # >0 follows links that many levels deep from each seed URL — powerful but
+    # heavy (needs crawl4ai + a headless browser), best on a GPU/desktop machine.
+    deep_crawl_depth: int = Field(0, alias="DEEP_CRAWL_DEPTH")
+    deep_crawl_max_pages: int = Field(8, alias="DEEP_CRAWL_MAX_PAGES")  # cap per seed
+
+    # Critic: for opportunities missing a deadline, run this many bounded targeted
+    # searches to try to fill it in. 0 = disable the Critic enrichment step.
+    critic_max_enrich: int = Field(3, alias="CRITIC_MAX_ENRICH")
 
     # Rate control so a long deep run never crosses Groq's free limits:
     #   Groq free 70B ≈ 30 req/min, 12K tok/min, 100K tok/day. We pace UNDER 30 RPM

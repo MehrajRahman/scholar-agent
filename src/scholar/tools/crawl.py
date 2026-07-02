@@ -68,6 +68,7 @@ from __future__ import annotations
 
 import asyncio
 
+from ..config import get_settings
 from ..observability import get_logger
 from .scraper import _is_junk, fetch_clean_text  # junk filter lives in scraper to avoid duplication
 
@@ -80,18 +81,60 @@ _crawler_unavailable = False  # cache the import result after the first miss
 CRAWL_CONCURRENCY = 3
 
 
+def _result_text(result) -> str:
+    return getattr(result, "markdown", None) or getattr(result, "text", "") or ""
+
+
+async def _crawl4ai_single(url: str, max_chars: int) -> str:
+    """Render one page with a headless browser (raises ImportError if unavailable)."""
+    from crawl4ai import AsyncWebCrawler  # type: ignore
+
+    async with AsyncWebCrawler(verbose=False) as crawler:
+        result = await crawler.arun(url=url)
+    return _result_text(result)[:max_chars]
+
+
+async def _crawl4ai_deep(url: str, depth: int, max_pages: int, max_chars: int) -> str:
+    """DFS deep crawl — follow links `depth` levels from `url`, concatenating text.
+
+    Autonomously drills from a listing/index page down to the specific detail
+    pages (e.g. a grad-school index -> a professor's funding page). Import paths
+    have shifted across crawl4ai versions, so the caller falls back to single-page
+    on any failure here.
+    """
+    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig  # type: ignore
+    from crawl4ai.deep_crawling import DFSDeepCrawlStrategy  # type: ignore
+
+    strategy = DFSDeepCrawlStrategy(max_depth=depth, max_pages=max_pages, include_external=False)
+    config = CrawlerRunConfig(deep_crawl_strategy=strategy)
+    async with AsyncWebCrawler(verbose=False) as crawler:
+        results = await crawler.arun(url=url, config=config)
+    if not isinstance(results, list):
+        results = [results]
+    return "\n\n".join(t for r in results if (t := _result_text(r)))[:max_chars]
+
+
+async def _crawl4ai_text(url: str, max_chars: int) -> str:
+    """crawl4ai text: deep crawl if DEEP_CRAWL_DEPTH>0, else single page. A deep-API
+    mismatch degrades to single page; ImportError bubbles up to disable crawl4ai."""
+    s = get_settings()
+    if s.deep_crawl_depth > 0:
+        try:
+            return await _crawl4ai_deep(url, s.deep_crawl_depth, s.deep_crawl_max_pages, max_chars)
+        except ImportError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - deep API mismatch -> single page
+            log.warning("deep_crawl_failed", url=url, error=str(exc))
+    return await _crawl4ai_single(url, max_chars)
+
+
 async def crawl_clean_text(url: str, max_chars: int = 8000) -> str:
-    """Return clean markdown/text for ``url`` via Crawl4AI, else trafilatura."""
+    """Return clean text for ``url``: crawl4ai (deep if configured) else trafilatura."""
     global _crawler_unavailable
     if not _crawler_unavailable:
         try:
-            from crawl4ai import AsyncWebCrawler  # type: ignore
-
-            async with AsyncWebCrawler(verbose=False) as crawler:
-                result = await crawler.arun(url=url)
-            text = getattr(result, "markdown", None) or getattr(result, "text", "") or ""
-            if text:
-                return text[:max_chars]
+            if text := await _crawl4ai_text(url, max_chars):
+                return text
         except ImportError:
             _crawler_unavailable = True
             log.info("crawl4ai_not_installed", fallback="trafilatura")

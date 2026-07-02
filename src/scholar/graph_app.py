@@ -18,6 +18,7 @@ from functools import lru_cache
 from langgraph.graph import END, StateGraph
 
 from .agents import (
+    critic_node,
     deep_scout_node,
     matchmaker_node,
     profiler_node,
@@ -107,6 +108,7 @@ def build_graph():
     g.add_node("profiler", profiler_node)
     g.add_node("db_fetch", db_fetch_node)
     g.add_node("deep_scout", deep_scout_node)
+    g.add_node("critic", critic_node)
     g.add_node("matchmaker", matchmaker_node)
     g.add_node("scribe", scribe_node)
     g.add_node("quality_gate", quality_gate_node)
@@ -117,7 +119,9 @@ def build_graph():
     g.add_conditional_edges(
         "profiler", mode_router, {"deep_scout": "deep_scout", "db_fetch": "db_fetch"}
     )
-    g.add_edge("deep_scout", "matchmaker")
+    # Deep path passes through the Critic (deadline enrichment); fast path is lean.
+    g.add_edge("deep_scout", "critic")
+    g.add_edge("critic", "matchmaker")
     g.add_edge("db_fetch", "matchmaker")
     g.add_conditional_edges("matchmaker", route_after_matchmaker, {"scribe": "scribe", END: END})
     g.add_edge("scribe", "quality_gate")
