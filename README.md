@@ -6,9 +6,9 @@ Master's positions, ranks them against your actual profile, and drafts
 **grounded** (fact-checked, non-hallucinated) cold emails and Statements of
 Purpose for your best matches.
 
+[![CI](https://github.com/MehrajRahman/scholar-agent/actions/workflows/test.yml/badge.svg)](https://github.com/MehrajRahman/scholar-agent/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)](tests/)
 
 > 📖 **New here?** [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) walks
 > through one CV flowing end-to-end through every agent. [SKILLS/skills.md](SKILLS/skills.md)

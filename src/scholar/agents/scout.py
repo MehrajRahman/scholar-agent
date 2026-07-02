@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
-from ..config import get_settings
 from ..kb import get_graph, get_vectors
 from ..llm import Role, get_llm
 from ..observability import get_logger

@@ -105,9 +105,9 @@ async def matchmaker_node(state: PipelineState) -> dict:
     scored = await asyncio.gather(
         *(score(oid) for oid in ranked_ids), return_exceptions=True
     )
-    matches = []
+    matches: list[MatchResult] = []
     for oid, res in zip(ranked_ids, scored):
-        if isinstance(res, Exception):
+        if isinstance(res, BaseException):
             log.warning("score_failed", opportunity_id=oid, error=str(res))
             continue
         matches.append(res)
