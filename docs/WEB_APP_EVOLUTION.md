@@ -320,3 +320,47 @@ tracking spine exists.
 
 Increment 0.1 is additive and does not touch any existing endpoint — the current
 one-shot tool keeps working throughout.
+
+---
+
+## 14. Course corrections (product + architecture)
+
+### 14.1 Frontend: reverse the SvelteKit decision → zero-build, FastAPI-served
+The earlier choice was SvelteKit/React. Re-evaluated against the stated goals
+(*"minimal, more engineered, less resource"*, single-user self-hosted): a SPA
+framework adds a **Node toolchain, a build step, a second dev server, and CORS**
+— all overhead a personal one-stop tool shouldn't carry.
+
+The *finer* pattern for this context is a **zero-build multi-view app** (Alpine +
+Tailwind via CDN) served as static files by the **same FastAPI** process:
+- one process, one deploy, no build, no CORS, no Node in production;
+- same-origin `fetch` to the `/auth` and `/me` APIs;
+- reuses the existing UI's aesthetic and idioms.
+
+It is still a real multi-page app (client-side routed views: Dashboard,
+Applications, Profile, Discover). If it ever outgrows this, migrating to SvelteKit
+is a clean, later step — but not before it's justified. **Phase 0.4 builds this.**
+
+### 14.2 Data retention: keep it fresh, not fat
+Insight from use: a scholarship platform should **not hoard past-years'
+opportunities** — expired calls are noise and waste storage. Instead:
+- **Prune/expire aggressively.** The `expire_sweep` already marks past-deadline
+  opportunities `expired`; retention should *archive or delete* them, keeping
+  Neo4j/Qdrant lean (directly serves "less resource").
+- **Keep a small, curated "success gallery" instead** — anonymised/consented
+  examples of past *successful* candidates + their winning documents (SOP,
+  motivation letters). High signal for an aspirant, tiny storage. This is a
+  future content module (`SuccessStory`), not opportunity data.
+
+### 14.3 Daily freshness job (scheduled surfing)
+Goal: once a day, refresh the knowledge base so it stays current. The mechanism
+already exists — `deep_scout` write-back (versioned, dedup) + `/maintenance/sweep`
+(`expire_sweep`). What's missing is a **scheduler**. Minimal design:
+- A single daily job (system `cron` hitting `/maintenance/sweep`, or a small
+  in-process scheduler) that (1) expires stale/past-deadline opps and (2) runs a
+  *bounded* deep-research pass over a rotating set of the user's active interests
+  to pull in new opportunities and update changed ones (content-hash tells a
+  re-discovery from a real change).
+- Kept **off the request path** and **bounded** (respects the free-tier call
+  budget). This lands in the automation phase (Phase 3), not now — but the data
+  model and sweep are already built for it.
