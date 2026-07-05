@@ -1,6 +1,13 @@
 """Web-app system of record (SQLAlchemy). See docs/WEB_APP_EVOLUTION.md."""
 from .base import Base, get_engine, get_session, get_sessionmaker, init_db
-from .models import APPLICATION_STATUSES, Profile, SavedApplication, User
+from .models import (
+    APPLICATION_STATUSES,
+    PROFESSOR_STATUSES,
+    Profile,
+    ProfessorContact,
+    SavedApplication,
+    User,
+)
 
 __all__ = [
     "Base",
@@ -11,5 +18,7 @@ __all__ = [
     "User",
     "Profile",
     "SavedApplication",
+    "ProfessorContact",
     "APPLICATION_STATUSES",
+    "PROFESSOR_STATUSES",
 ]

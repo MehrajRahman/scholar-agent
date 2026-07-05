@@ -92,16 +92,30 @@
             <div class="glass rounded-2xl p-4"><p class="text-2xl font-extrabold text-amber-300" x-text="appsByStatus('applied').length"></p><p class="text-xs text-slate-400 mt-0.5">applied</p></div>
             <div class="glass rounded-2xl p-4"><p class="text-2xl font-extrabold text-emerald-400" x-text="appsByStatus('offer').length"></p><p class="text-xs text-slate-400 mt-0.5">offers 🎉</p></div>
           </div>
-          <div class="glass rounded-2xl p-5">
-            <h3 class="text-sm font-semibold text-white mb-3">⏳ Upcoming deadlines</h3>
-            <template x-if="upcoming.length===0"><p class="text-sm text-slate-500">No upcoming deadlines. Add applications and set their deadlines to see them here.</p></template>
-            <div class="space-y-2">
-              <template x-for="a in upcoming" :key="a.id">
-                <div class="flex items-center justify-between rounded-xl bg-ink-800/50 px-3 py-2">
-                  <div class="min-w-0"><p class="text-sm text-white truncate" x-text="a.title"></p><p class="text-xs text-slate-500" x-text="a.institution || '—'"></p></div>
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-200 shrink-0" x-text="a.deadline"></span>
-                </div>
-              </template>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-5">
+              <h3 class="text-sm font-semibold text-white mb-3">⏳ Upcoming deadlines</h3>
+              <template x-if="upcoming.length===0"><p class="text-sm text-slate-500">No upcoming deadlines. Add applications and set their deadlines to see them here.</p></template>
+              <div class="space-y-2">
+                <template x-for="a in upcoming" :key="a.id">
+                  <div class="flex items-center justify-between rounded-xl bg-ink-800/50 px-3 py-2">
+                    <div class="min-w-0"><p class="text-sm text-white truncate" x-text="a.title"></p><p class="text-xs text-slate-500" x-text="a.institution || '—'"></p></div>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-200 shrink-0" x-text="a.deadline"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div class="glass rounded-2xl p-5">
+              <h3 class="text-sm font-semibold text-white mb-3">📧 Follow-ups due</h3>
+              <template x-if="followupsDue.length===0"><p class="text-sm text-slate-500">No follow-ups due. Set a follow-up date on a professor to get a nudge here.</p></template>
+              <div class="space-y-2">
+                <template x-for="p in followupsDue" :key="p.id">
+                  <button @click="view='professors'; openProf(p)" class="w-full flex items-center justify-between rounded-xl bg-ink-800/50 px-3 py-2 text-left hover:bg-ink-800/80 transition">
+                    <div class="min-w-0"><p class="text-sm text-white truncate" x-text="p.name"></p><p class="text-xs text-slate-500" x-text="p.university || '—'"></p></div>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 shrink-0" x-text="p.next_followup_at"></span>
+                  </button>
+                </template>
+              </div>
             </div>
           </div>
         </section>
@@ -167,6 +181,57 @@
                       </div>
                     </div>
                   </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <!-- ░░ PROFESSORS (outreach CRM) ░░ -->
+        <section x-show="view==='professors'" class="fade-in">
+          <div class="flex items-center justify-between mb-4">
+            <div><h2 class="text-xl font-bold text-white">Professors</h2><p class="text-sm text-slate-400">Track outreach — who you've emailed, replies, and follow-ups.</p></div>
+            <button @click="showAddProf=!showAddProf" class="rounded-xl px-3 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition">＋ Add</button>
+          </div>
+
+          <div x-show="showAddProf" x-transition class="glass rounded-2xl p-4 mb-5">
+            <div class="grid sm:grid-cols-2 gap-3">
+              <input x-model="newProf.name" placeholder="Name * (e.g. Dr. A. Müller)" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <input x-model="newProf.university" placeholder="University" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <input x-model="newProf.department" placeholder="Department" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <input x-model="newProf.email" type="email" placeholder="Email" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <select x-model="newProf.status" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:outline-none">
+                <template x-for="s in profStatuses" :key="s"><option :value="s" x-text="profStatusMeta[s].label"></option></template>
+              </select>
+              <input x-model="newProf.next_followup_at" type="date" title="Follow-up date" class="rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm text-slate-300 focus:outline-none" />
+            </div>
+            <div class="mt-3 flex gap-2">
+              <button @click="addProfessor()" :disabled="!newProf.name.trim()" class="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-40 transition">Add professor</button>
+              <button @click="showAddProf=false" class="rounded-xl px-4 py-2 text-sm text-slate-400 hover:text-white transition">Cancel</button>
+            </div>
+          </div>
+
+          <template x-if="professors.length===0 && !showAddProf">
+            <div class="glass rounded-3xl p-10 text-center"><div class="text-4xl mb-2">👤</div><p class="text-white font-semibold">No professors yet</p><p class="text-sm text-slate-400 mt-1">Add a professor you want to email and track the conversation.</p></div>
+          </template>
+
+          <div x-show="professors.length" class="grid sm:grid-cols-2 gap-3">
+            <template x-for="p in professors" :key="p.id">
+              <div class="glass card-hover rounded-2xl p-4 border border-white/8">
+                <div @click="openProf(p)" class="cursor-pointer">
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="text-sm font-semibold text-white" x-text="p.name"></p>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0" :style="`background:${profStatusMeta[p.status].color}22;color:${profStatusMeta[p.status].color}`" x-text="profStatusMeta[p.status].label"></span>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-0.5" x-text="[p.university, p.department].filter(Boolean).join(' · ') || '—'"></p>
+                  <div class="flex items-center gap-2 mt-2 flex-wrap">
+                    <span x-show="p.email" class="text-[11px] text-slate-500" x-text="p.email"></span>
+                    <span x-show="p.thread && p.thread.length" class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300" x-text="p.thread.length + ' msg'"></span>
+                    <span x-show="p.next_followup_at" class="text-[10px] px-2 py-0.5 rounded-full" :class="profDue(p) ? 'bg-rose-500/15 text-rose-300' : 'bg-amber-500/15 text-amber-200'" x-text="(profDue(p)?'⚠ ':'📅 ')+p.next_followup_at"></span>
+                  </div>
+                </div>
+                <div class="flex justify-end mt-2 pt-2 border-t border-white/5">
+                  <button @click="removeProfessor(p)" class="text-slate-500 hover:text-rose-400 text-xs" title="Remove">✕</button>
                 </div>
               </div>
             </template>
@@ -258,6 +323,75 @@
           </div>
         </div>
       </template>
+
+      <!-- ░░ PROFESSOR DETAIL DRAWER ░░ -->
+      <template x-if="profDetail">
+        <div class="fixed inset-0 z-40" @keydown.escape.window="closeProf()">
+          <div class="absolute inset-0 bg-black/50" @click="closeProf()"></div>
+          <div class="absolute right-0 top-0 h-full w-full max-w-md glass border-l border-white/10 overflow-y-auto p-6 fade-in">
+            <div class="flex items-start justify-between gap-3 mb-4">
+              <input x-model="profDetail.name" class="flex-1 bg-transparent text-lg font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20" />
+              <button @click="closeProf()" class="text-slate-400 hover:text-white text-xl leading-none shrink-0">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <input x-model="profDetail.university" placeholder="University" class="rounded-lg bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              <input x-model="profDetail.department" placeholder="Department" class="rounded-lg bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            </div>
+            <input x-model="profDetail.email" type="email" placeholder="Email" class="w-full rounded-lg bg-ink-800/60 border border-white/10 px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label class="text-xs text-slate-500">Stage</label>
+                <select x-model="profDetail.status" class="mt-1 w-full rounded-lg bg-ink-800/60 border border-white/10 px-2 py-2 text-sm focus:outline-none">
+                  <template x-for="s in profStatuses" :key="s"><option :value="s" x-text="profStatusMeta[s].label"></option></template>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-slate-500">Follow-up on</label>
+                <input x-model="profDetail.next_followup_at" type="date" class="mt-1 w-full rounded-lg bg-ink-800/60 border border-white/10 px-2 py-2 text-sm text-slate-300 focus:outline-none" />
+              </div>
+            </div>
+            <label class="text-xs text-slate-500">Research fit</label>
+            <textarea x-model="profDetail.research_fit" rows="2" placeholder="Why this lab fits you…" class="mt-1 w-full rounded-lg bg-ink-800/60 border border-white/10 px-3 py-2 text-sm mb-4 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+
+            <!-- outreach thread -->
+            <div class="mb-4">
+              <span class="text-sm font-semibold text-white">Outreach log</span>
+              <div class="space-y-2 mt-2">
+                <template x-for="(msg,idx) in profDetail.thread" :key="idx">
+                  <div class="rounded-xl bg-ink-800/50 p-3 group">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[10px] px-2 py-0.5 rounded-full" :class="msg.direction==='sent' ? 'bg-brand-500/20 text-brand-200' : 'bg-emerald-500/15 text-emerald-300'" x-text="msg.direction==='sent' ? '↗ sent' : '↙ received'"></span>
+                      <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-slate-500" x-text="msg.at"></span>
+                        <button @click="removeMessage(idx)" class="text-slate-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition">✕</button>
+                      </div>
+                    </div>
+                    <p x-show="msg.subject" class="text-xs font-medium text-white mt-1" x-text="msg.subject"></p>
+                    <p x-show="msg.body" class="text-xs text-slate-400 mt-0.5 whitespace-pre-wrap" x-text="msg.body"></p>
+                  </div>
+                </template>
+                <p x-show="profDetail.thread.length===0" class="text-xs text-slate-500">No messages logged yet.</p>
+              </div>
+              <!-- add message -->
+              <div class="mt-2 rounded-xl border border-white/10 p-2 space-y-2">
+                <div class="flex gap-2">
+                  <select x-model="newMsg.direction" class="rounded-lg bg-ink-800/60 border border-white/10 px-2 py-1 text-xs focus:outline-none">
+                    <option value="sent">↗ I sent</option><option value="received">↙ Received</option>
+                  </select>
+                  <input x-model="newMsg.subject" placeholder="Subject" class="flex-1 rounded-lg bg-ink-800/60 border border-white/10 px-2 py-1 text-xs focus:outline-none" />
+                </div>
+                <textarea x-model="newMsg.body" rows="2" placeholder="What was said…" class="w-full rounded-lg bg-ink-800/60 border border-white/10 px-2 py-1 text-xs focus:outline-none"></textarea>
+                <button @click="addMessage()" class="w-full rounded-lg py-1.5 text-xs bg-brand-600 hover:bg-brand-500 text-white transition">＋ Log message</button>
+              </div>
+            </div>
+
+            <div class="flex gap-2">
+              <button @click="saveProf()" class="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-fuchsia-600 hover:from-brand-500 hover:to-fuchsia-500 transition">Save changes</button>
+              <button @click="closeProf()" class="rounded-xl px-4 py-2.5 text-sm text-slate-400 hover:text-white transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </template>
 
@@ -270,12 +404,21 @@
         user: null, email: '',
         authMode: 'login', authEmail: '', authPw: '', authErr: '', busy: false,
         view: 'dashboard',
-        nav: [{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications'},{id:'profile',label:'Profile'}],
+        nav: [{id:'dashboard',label:'Dashboard'},{id:'applications',label:'Applications'},{id:'professors',label:'Professors'},{id:'profile',label:'Profile'}],
         applications: [],
+        professors: [],
         profile: { full_name:'', cv_text:'', data:{} },
         newApp: { title:'', institution:'', country:'', kind:'scholarship', status:'interested', deadline:'' },
-        showAdd: false, toast: '',
+        newProf: { name:'', university:'', department:'', email:'', research_fit:'', status:'to_contact', next_followup_at:'' },
+        showAdd: false, showAddProf: false, toast: '',
         detail: null, newItem: '',
+        profDetail: null, newMsg: { direction:'sent', subject:'', body:'' },
+        profStatuses: ['to_contact','emailed','replied','in_conversation','meeting','closed'],
+        profStatusMeta: {
+          to_contact:{label:'To contact',color:'#94a3b8'}, emailed:{label:'Emailed',color:'#818cf8'},
+          replied:{label:'Replied',color:'#34d399'}, in_conversation:{label:'In conversation',color:'#a78bfa'},
+          meeting:{label:'Meeting',color:'#fbbf24'}, closed:{label:'Closed',color:'#64748b'},
+        },
         commonItems: ['SOP','CV','Motivation letter','3× Recommendation letters','Transcript','IELTS/TOEFL','GRE','Funding proof','Passport copy','Research proposal'],
         statuses: ['interested','preparing','applied','interview','offer','waitlisted','rejected'],
         statusMeta: {
@@ -294,6 +437,12 @@
         },
         appsByStatus(s){ return this.applications.filter(a=>a.status===s); },
         checklistProgress(a){ const c=a.checklist||[]; return c.filter(i=>i.done).length+'/'+c.length+' ✓'; },
+        get followupsDue(){
+          const today = new Date().toISOString().slice(0,10);
+          return this.professors.filter(p=>p.next_followup_at && p.next_followup_at<=today)
+            .sort((x,y)=>String(x.next_followup_at).localeCompare(String(y.next_followup_at)));
+        },
+        profDue(p){ const today=new Date().toISOString().slice(0,10); return p.next_followup_at && p.next_followup_at<=today; },
         showToast(m){ this.toast=m; setTimeout(()=>this.toast='',1800); },
 
         // --- application detail drawer ---
@@ -314,6 +463,42 @@
             deadline:d.deadline, notes:d.notes, checklist:d.checklist };
           const upd=await this.api('/me/applications/'+d.id, {method:'PATCH', body:JSON.stringify(body)});
           if(upd){ const i=this.applications.findIndex(x=>x.id===upd.id); if(i>=0) this.applications[i]=upd; this.detail=null; this.showToast('Saved'); }
+        },
+
+        // --- professors (outreach CRM) ---
+        async loadProfessors(){ this.professors = (await this.api('/me/professors')) || []; },
+        async addProfessor(){
+          if(!this.newProf.name.trim()) return;
+          const payload = Object.fromEntries(Object.entries(this.newProf).filter(([k,v])=>v!=='' && v!==null));
+          const created = await this.api('/me/professors', {method:'POST', body:JSON.stringify(payload)});
+          if(created){ this.professors.unshift(created);
+            this.newProf={name:'',university:'',department:'',email:'',research_fit:'',status:'to_contact',next_followup_at:''};
+            this.showAddProf=false; this.showToast('Professor added'); }
+        },
+        openProf(p){
+          this.profDetail = { id:p.id, name:p.name, university:p.university||'', department:p.department||'',
+            email:p.email||'', research_fit:p.research_fit||'', status:p.status,
+            next_followup_at:p.next_followup_at||'', thread:(p.thread||[]).map(m=>({...m})) };
+          this.newMsg={ direction:'sent', subject:'', body:'' };
+        },
+        closeProf(){ this.profDetail=null; },
+        addMessage(){
+          const m=this.newMsg; if(!m.subject.trim() && !m.body.trim()) return;
+          this.profDetail.thread.push({ direction:m.direction, subject:m.subject, body:m.body, at:new Date().toISOString().slice(0,10) });
+          this.newMsg={ direction:'sent', subject:'', body:'' };
+        },
+        removeMessage(idx){ this.profDetail.thread.splice(idx,1); },
+        async saveProf(){
+          const d=this.profDetail;
+          const body={ name:d.name, university:d.university, department:d.department, email:d.email,
+            research_fit:d.research_fit, status:d.status, next_followup_at:d.next_followup_at, thread:d.thread };
+          const upd=await this.api('/me/professors/'+d.id, {method:'PATCH', body:JSON.stringify(body)});
+          if(upd){ const i=this.professors.findIndex(x=>x.id===upd.id); if(i>=0){ this.professors[i]=upd; } this.profDetail=null; this.showToast('Saved'); }
+        },
+        async removeProfessor(p){
+          if(!confirm('Remove "'+p.name+'"?')) return;
+          const ok=await this.api('/me/professors/'+p.id, {method:'DELETE'});
+          if(ok) this.professors = this.professors.filter(x=>x.id!==p.id);
         },
 
         async init(){
@@ -349,7 +534,7 @@
         },
         logout(){ this.token=''; this.user=null; localStorage.removeItem('scholar_token'); },
 
-        async loadAll(){ await Promise.all([this.loadApplications(), this.loadProfile()]); },
+        async loadAll(){ await Promise.all([this.loadApplications(), this.loadProfessors(), this.loadProfile()]); },
         async loadApplications(){ this.applications = (await this.api('/me/applications')) || []; },
         async loadProfile(){
           try{ const p = await this.api('/me/profile'); if(p) this.profile = {data:{}, ...p}; }

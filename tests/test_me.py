@@ -133,3 +133,41 @@ def test_checklist_out_coerces_legacy_null():
         created_at = updated_at = "2026-01-01"
 
     assert ApplicationOut.model_validate(Row()).checklist == []
+
+
+# --- Professor CRM ---------------------------------------------------------
+
+def test_professor_crud(client):
+    h = _auth(client, "p@x.com")
+    r = client.post(
+        "/me/professors",
+        json={"name": "Dr. Müller", "university": "TUM", "email": "m@tum.edu",
+              "next_followup_at": "2026-08-01",
+              "thread": [{"direction": "sent", "subject": "PhD inquiry", "body": "Hello"}]},
+        headers=h,
+    )
+    assert r.status_code == 201 and r.json()["status"] == "to_contact"
+    assert len(r.json()["thread"]) == 1
+    pid = r.json()["id"]
+
+    assert client.patch(f"/me/professors/{pid}", json={"status": "emailed"}, headers=h).json()["status"] == "emailed"
+    assert len(client.get("/me/professors?status=emailed", headers=h).json()) == 1
+    assert client.delete(f"/me/professors/{pid}", headers=h).status_code == 204
+    assert client.get(f"/me/professors/{pid}", headers=h).status_code == 404
+
+
+def test_professor_invalid_status_rejected(client):
+    h = _auth(client, "p2@x.com")
+    assert client.post("/me/professors", json={"name": "X", "status": "bogus"}, headers=h).status_code == 422
+
+
+def test_professor_cross_user_isolation(client):
+    a = _auth(client, "pa@x.com")
+    b = _auth(client, "pb@x.com")
+    pid = client.post("/me/professors", json={"name": "Alice's prof"}, headers=a).json()["id"]
+
+    assert client.get("/me/professors", headers=b).json() == []
+    assert client.get(f"/me/professors/{pid}", headers=b).status_code == 404
+    assert client.patch(f"/me/professors/{pid}", json={"status": "emailed"}, headers=b).status_code == 404
+    assert client.delete(f"/me/professors/{pid}", headers=b).status_code == 404
+    assert client.get(f"/me/professors/{pid}", headers=a).status_code == 200

@@ -12,13 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
 from ..auth.deps import CurrentUser
-from ..db import APPLICATION_STATUSES, get_session
+from ..db import APPLICATION_STATUSES, PROFESSOR_STATUSES, get_session
 from ..db import repo
 
 router = APIRouter(prefix="/me", tags=["me"])
 
 Db = Annotated[Session, Depends(get_session)]
 _APP_NOT_FOUND = "application not found"
+_PROF_NOT_FOUND = "professor not found"
 
 
 # --- Schemas ---------------------------------------------------------------
@@ -161,3 +162,111 @@ def update_application(
 def delete_application(app_id: int, user: CurrentUser, session: Db) -> None:
     if not repo.delete_application(session, user.id, app_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, _APP_NOT_FOUND)
+
+
+# --- Professors (outreach CRM) ---------------------------------------------
+
+class ThreadMessage(BaseModel):
+    direction: str = "sent"        # "sent" | "received"
+    subject: str = ""
+    body: str = ""
+    at: str = ""                    # ISO date/time the user logged it
+
+
+class ProfessorCreate(BaseModel):
+    name: str = Field(min_length=1)
+    university: str | None = None
+    department: str | None = None
+    email: str | None = None
+    research_fit: str = ""
+    status: str = "to_contact"
+    linked_application_id: int | None = None
+    next_followup_at: str | None = None
+    thread: list[ThreadMessage] = Field(default_factory=list)
+
+    @field_validator("status")
+    @classmethod
+    def _valid_status(cls, v: str) -> str:
+        if v not in PROFESSOR_STATUSES:
+            raise ValueError(f"status must be one of {PROFESSOR_STATUSES}")
+        return v
+
+
+class ProfessorUpdate(BaseModel):
+    name: str | None = None
+    university: str | None = None
+    department: str | None = None
+    email: str | None = None
+    research_fit: str | None = None
+    status: str | None = None
+    linked_application_id: int | None = None
+    next_followup_at: str | None = None
+    thread: list[ThreadMessage] | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _valid_status(cls, v: str | None) -> str | None:
+        if v is not None and v not in PROFESSOR_STATUSES:
+            raise ValueError(f"status must be one of {PROFESSOR_STATUSES}")
+        return v
+
+
+class ProfessorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    university: str | None
+    department: str | None
+    email: str | None
+    research_fit: str
+    status: str
+    linked_application_id: int | None
+    next_followup_at: str | None
+    thread: list[ThreadMessage] = Field(default_factory=list)
+    created_at: object
+    updated_at: object
+
+    @field_validator("thread", mode="before")
+    @classmethod
+    def _coerce_thread(cls, v: object) -> object:
+        return v or []
+
+
+@router.get("/professors", response_model=list[ProfessorOut])
+def list_professors(
+    user: CurrentUser,
+    session: Db,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+) -> list[ProfessorOut]:
+    profs = repo.list_professors(session, user.id, status_filter)
+    return [ProfessorOut.model_validate(p) for p in profs]
+
+
+@router.post("/professors", response_model=ProfessorOut, status_code=status.HTTP_201_CREATED)
+def create_professor(body: ProfessorCreate, user: CurrentUser, session: Db) -> ProfessorOut:
+    prof = repo.create_professor(session, user.id, body.model_dump())
+    return ProfessorOut.model_validate(prof)
+
+
+@router.get("/professors/{prof_id}", response_model=ProfessorOut)
+def get_professor(prof_id: int, user: CurrentUser, session: Db) -> ProfessorOut:
+    prof = repo.get_professor(session, user.id, prof_id)
+    if prof is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _PROF_NOT_FOUND)
+    return ProfessorOut.model_validate(prof)
+
+
+@router.patch("/professors/{prof_id}", response_model=ProfessorOut)
+def update_professor(
+    prof_id: int, body: ProfessorUpdate, user: CurrentUser, session: Db
+) -> ProfessorOut:
+    prof = repo.update_professor(session, user.id, prof_id, body.model_dump(exclude_unset=True))
+    if prof is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _PROF_NOT_FOUND)
+    return ProfessorOut.model_validate(prof)
+
+
+@router.delete("/professors/{prof_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_professor(prof_id: int, user: CurrentUser, session: Db) -> None:
+    if not repo.delete_professor(session, user.id, prof_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _PROF_NOT_FOUND)

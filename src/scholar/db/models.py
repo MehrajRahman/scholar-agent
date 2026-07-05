@@ -21,6 +21,11 @@ APPLICATION_STATUSES = (
     "offer", "rejected", "waitlisted",
 )
 
+# Professor outreach stages (see docs §7.2).
+PROFESSOR_STATUSES = (
+    "to_contact", "emailed", "replied", "in_conversation", "meeting", "closed",
+)
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -38,6 +43,9 @@ class User(Base):
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
     applications: Mapped[list[SavedApplication]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    professors: Mapped[list[ProfessorContact]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -88,3 +96,31 @@ class SavedApplication(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="applications")
+
+
+class ProfessorContact(Base):
+    """A professor the user is reaching out to — the outreach CRM record."""
+
+    __tablename__ = "professor_contacts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    university: Mapped[str | None] = mapped_column(String(300), default=None)
+    department: Mapped[str | None] = mapped_column(String(200), default=None)
+    email: Mapped[str | None] = mapped_column(String(320), default=None)
+    research_fit: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(40), default="to_contact", index=True)
+    # Optional soft link to a saved application this outreach is about.
+    linked_application_id: Mapped[int | None] = mapped_column(default=None)
+    next_followup_at: Mapped[str | None] = mapped_column(String(32), default=None)
+    # Outreach thread: [{"direction": "sent"|"received", "subject", "body", "at"}]
+    thread: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+    user: Mapped[User] = relationship(back_populates="professors")

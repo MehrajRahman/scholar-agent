@@ -11,12 +11,16 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Profile, SavedApplication
+from .models import Profile, ProfessorContact, SavedApplication
 
 # Fields a client may set on an application (whitelist — never trust arbitrary keys).
 _APP_FIELDS = {
     "opportunity_ref", "title", "institution", "country",
     "kind", "status", "deadline", "source_url", "notes", "checklist",
+}
+_PROF_FIELDS = {
+    "name", "university", "department", "email", "research_fit",
+    "status", "linked_application_id", "next_followup_at", "thread",
 }
 
 
@@ -90,5 +94,56 @@ def delete_application(session: Session, user_id: int, app_id: int) -> bool:
     if app is None:
         return False
     session.delete(app)
+    session.commit()
+    return True
+
+
+# --- Professor contacts (outreach CRM) -------------------------------------
+
+def list_professors(
+    session: Session, user_id: int, status: str | None = None
+) -> list[ProfessorContact]:
+    stmt = select(ProfessorContact).where(ProfessorContact.user_id == user_id)
+    if status:
+        stmt = stmt.where(ProfessorContact.status == status)
+    return list(session.scalars(stmt.order_by(ProfessorContact.updated_at.desc())))
+
+
+def get_professor(session: Session, user_id: int, prof_id: int) -> ProfessorContact | None:
+    return session.scalar(
+        select(ProfessorContact).where(
+            ProfessorContact.id == prof_id, ProfessorContact.user_id == user_id
+        )
+    )
+
+
+def create_professor(session: Session, user_id: int, fields: dict[str, Any]) -> ProfessorContact:
+    clean = {k: v for k, v in fields.items() if k in _PROF_FIELDS}
+    prof = ProfessorContact(user_id=user_id, **clean)
+    session.add(prof)
+    session.commit()
+    session.refresh(prof)
+    return prof
+
+
+def update_professor(
+    session: Session, user_id: int, prof_id: int, fields: dict[str, Any]
+) -> ProfessorContact | None:
+    prof = get_professor(session, user_id, prof_id)
+    if prof is None:
+        return None
+    for key, value in fields.items():
+        if key in _PROF_FIELDS and value is not None:
+            setattr(prof, key, value)
+    session.commit()
+    session.refresh(prof)
+    return prof
+
+
+def delete_professor(session: Session, user_id: int, prof_id: int) -> bool:
+    prof = get_professor(session, user_id, prof_id)
+    if prof is None:
+        return False
+    session.delete(prof)
     session.commit()
     return True
