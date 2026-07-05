@@ -22,8 +22,20 @@
       }
     },
     {
+      "name": "gemini",
+      "_comment": "Cloud option with a very generous FREE tier: ~1M tokens/min and ~1M context (great for JSON extraction over long pages), OpenAI-compatible. RPM is lower (~15) so pace LLM_RPM_LIMIT under it. Free tier may train on your data — use the paid tier for a multi-user product. Verify model ids at https://ai.google.dev.",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "api_key_env": "GEMINI_API_KEY",
+      "guided_json": false,
+      "models": {
+        "heavy":  "gemini-2.5-flash",
+        "fast":   "gemini-2.0-flash",
+        "scribe": "gemini-2.5-flash"
+      }
+    },
+    {
       "name": "groq",
-      "_comment": "First cloud fallback — fastest remote inference. Free tier: 30 RPM. Only reached if Ollama is down or times out.",
+      "_comment": "Fast remote inference. Free tier: 30 RPM but tight tokens/min. Reached if Gemini/Ollama are down or rate-limited.",
       "base_url": "https://api.groq.com/openai/v1",
       "api_key_env": "GROQ_API_KEY",
       "guided_json": false,
