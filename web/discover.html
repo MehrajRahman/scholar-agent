@@ -57,7 +57,10 @@
         <p class="text-xs text-slate-400 mt-0.5">funded opportunities, grounded applications</p>
       </div>
     </div>
-    <a href="#" @click.prevent="reset()" class="text-sm text-slate-400 hover:text-white transition" x-show="view!=='intake'">↺ New search</a>
+    <div class="flex items-center gap-4">
+      <a href="/app/" class="text-sm text-slate-400 hover:text-white transition">⌂ My tracker</a>
+      <a href="#" @click.prevent="reset()" class="text-sm text-slate-400 hover:text-white transition" x-show="view!=='intake'">↺ New search</a>
+    </div>
   </header>
 
   <main class="max-w-6xl mx-auto px-5 py-8">
@@ -333,6 +336,16 @@
                 🔗 <span x-text="hostOf(selectedMatch.source_url)"></span> · View original posting ↗
               </a>
 
+              <!-- save to the user's application pipeline -->
+              <div class="mt-4 flex items-center gap-3">
+                <button @click="saveToPipeline(selectedMatch)" :disabled="isSaved(selectedMatch)"
+                  class="rounded-xl px-4 py-2 text-sm font-semibold transition"
+                  :class="isSaved(selectedMatch) ? 'bg-emerald-500/15 text-emerald-300 cursor-default' : 'text-white bg-brand-600 hover:bg-brand-500'">
+                  <span x-text="isSaved(selectedMatch) ? '✓ Saved to pipeline' : '＋ Save to pipeline'"></span>
+                </button>
+                <span x-show="!token" class="text-xs text-slate-500">— <a href="/app/" class="text-brand-400 underline">log in</a> to save & track</span>
+              </div>
+
               <p class="text-sm text-slate-300 mt-4" x-text="selectedMatch.rationale"></p>
 
               <div class="grid grid-cols-2 gap-3 mt-4 text-xs">
@@ -462,6 +475,8 @@
         startedAt: 0, elapsed: 0, _timer: null,
         result: {}, selected: 0, tab: 'email', error: '', toast: '',
         drafting: false, draftError: '', draftArtifacts: [],
+        token: localStorage.getItem('scholar_token') || '',   // shared with the tracker app
+        savedRefs: [],                                          // opportunity_ids already saved
 
         get canStart(){ return (this.cvText.trim().length>20 || this.cvName) && this.view!=='running'; },
         get eligibleCount(){ return (this.result.matches||[]).filter(m=>m.eligible).length; },
@@ -481,6 +496,26 @@
           else this.draftArtifacts=[...this.draftArtifacts, id];
         },
         hostOf(url){ const m=(url||'').match(/^https?:\/\/(?:www\.)?([^/]+)/i); return m ? m[1] : 'source'; },
+        isSaved(m){ return !!m && this.savedRefs.includes(m.opportunity_id); },
+        async saveToPipeline(m){
+          if(!m || this.isSaved(m)) return;
+          if(!this.token){ this.showToast('Log in to save & track'); location.href='/app/'; return; }
+          const kindMap = {phd_position:'phd', masters_position:'masters', postdoc:'postdoc', scholarship:'scholarship', grant:'scholarship'};
+          const payload = {
+            title: m.opportunity_title, opportunity_ref: m.opportunity_id,
+            institution: m.university, kind: kindMap[m.kind] || 'scholarship',
+            deadline: m.deadline, source_url: m.source_url, status: 'interested',
+          };
+          Object.keys(payload).forEach(k=>{ if(payload[k]==null || payload[k]==='') delete payload[k]; });
+          try{
+            const r=await fetch('/me/applications',{method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+this.token},
+              body:JSON.stringify(payload)});
+            if(r.status===401){ this.token=''; localStorage.removeItem('scholar_token'); this.showToast('Session expired — log in again'); location.href='/app/'; return; }
+            if(!r.ok) throw new Error('save failed');
+            this.savedRefs.push(m.opportunity_id); this.showToast('Saved to your pipeline ✓');
+          }catch{ this.showToast('Could not save — try again'); }
+        },
         async generateDraft(m){
           if(!m || this.drafting) return;
           this.drafting=true; this.draftError='';
