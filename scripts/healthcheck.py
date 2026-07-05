@@ -48,7 +48,9 @@ def check_provider(p) -> tuple[str, str]:
     if p.api_key and p.api_key != "not-needed":
         headers["Authorization"] = f"Bearer {p.api_key}"
     try:
-        r = httpx.get(f"{p.base_url}/models", headers=headers, timeout=8)
+        # rstrip so a base_url with a trailing slash (e.g. Gemini) doesn't become
+        # "…/openai//models" (which 404s).
+        r = httpx.get(f"{p.base_url.rstrip('/')}/models", headers=headers, timeout=8)
         if r.status_code == 200:
             return PASS, f"{p.base_url} · reachable"
         if r.status_code in (401, 403):
