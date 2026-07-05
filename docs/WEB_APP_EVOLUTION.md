@@ -352,15 +352,29 @@ opportunities** — expired calls are noise and waste storage. Instead:
   motivation letters). High signal for an aspirant, tiny storage. This is a
   future content module (`SuccessStory`), not opportunity data.
 
-### 14.3 Daily freshness job (scheduled surfing)
-Goal: once a day, refresh the knowledge base so it stays current. The mechanism
-already exists — `deep_scout` write-back (versioned, dedup) + `/maintenance/sweep`
-(`expire_sweep`). What's missing is a **scheduler**. Minimal design:
-- A single daily job (system `cron` hitting `/maintenance/sweep`, or a small
-  in-process scheduler) that (1) expires stale/past-deadline opps and (2) runs a
-  *bounded* deep-research pass over a rotating set of the user's active interests
-  to pull in new opportunities and update changed ones (content-hash tells a
-  re-discovery from a real change).
-- Kept **off the request path** and **bounded** (respects the free-tier call
-  budget). This lands in the automation phase (Phase 3), not now — but the data
-  model and sweep are already built for it.
+### 14.3 Daily freshness job (scheduled surfing) — BUILT
+Implemented as `src/scholar/maintenance.py`, deliberately split by cost:
+- **`sweep_and_prune`** (cheap, no LLM): marks stale/expired, then *deletes*
+  past-deadline opportunities from **Neo4j and Qdrant** — this is the "lean
+  retention" from §14.2, made real (`graph.prune_expired` + `vectors.delete_by_ids`).
+- **`refresh(query)`** (LLM, bounded): reuses the Deep Scout to discover new /
+  update changed opportunities (content-hash write-back = update-in-place).
+
+An **opt-in in-process daily scheduler** (`MAINTENANCE_DAILY=true`, a plain
+asyncio loop in the API lifespan — no extra dependency) runs `sweep_and_prune`
+daily. The LLM-costly `refresh` only runs in that job when
+`MAINTENANCE_REFRESH_QUERY` is set — a deliberate guard so a daily job can never
+silently exhaust a free-tier budget and break interactive use. Both are also
+exposed as endpoints (`POST /maintenance/sweep`, `POST /maintenance/refresh`) for
+a cron or manual trigger.
+
+**Engineering rationale:** the *automatic* daily work is the cheap, always-safe
+freshness (prune stale, keep the KB small); the *expensive* surfing is explicit
+and budget-aware. Minimal, low-resource, and it never surprises the user.
+
+### 14.4 Success gallery (next content module)
+The counterpart to lean retention: instead of hoarding dead opportunities, keep a
+small, curated set of **successful-candidate examples + their documents** (winning
+SOPs, motivation letters) as inspiration. A future `SuccessStory` model + a
+read-mostly gallery page — high signal, tiny storage. Not built yet; noted so the
+retention story is complete.

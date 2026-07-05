@@ -11,6 +11,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
@@ -25,7 +26,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..config import get_settings
 from ..graph_app import get_app, run_pipeline
-from ..kb import get_graph, get_vectors
+from ..kb import get_vectors
 from ..observability import configure_logging, get_logger
 from ..state import PipelineState
 
@@ -92,6 +93,19 @@ def _result_payload(state: Mapping[str, Any]) -> dict:
     }
 
 
+async def _maintenance_loop() -> None:
+    """Opt-in daily KB freshness: sweep + prune (cheap) and, if configured, a
+    bounded refresh. Runs in-process so there's no extra scheduler dependency."""
+    from ..maintenance import run_daily
+
+    while True:
+        try:
+            await run_daily()
+        except Exception as exc:  # noqa: BLE001 - never let a bad run kill the loop
+            log.warning("maintenance_loop_error", error=str(exc))
+        await asyncio.sleep(24 * 60 * 60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
@@ -104,7 +118,13 @@ async def lifespan(app: FastAPI):
             init_db()  # create the accounts/applications tables if missing
         except Exception as exc:  # noqa: BLE001
             log.warning("db_init_skipped", error=str(exc))
+    task: asyncio.Task | None = None
+    if get_settings().maintenance_daily:
+        task = asyncio.create_task(_maintenance_loop())
+        log.info("maintenance_scheduler_started")
     yield
+    if task is not None:
+        task.cancel()
 
 
 app = FastAPI(title="scholar-agent", version="0.2.0", lifespan=lifespan)
@@ -137,9 +157,24 @@ async def ingest(file: Annotated[UploadFile, File()]) -> dict:
 
 @app.post("/maintenance/sweep")
 async def maintenance_sweep() -> dict:
-    """Freshness sweep: expire past-deadline opps, mark stale ones. n8n cron hits this."""
-    counts = await get_graph().expire_sweep(get_settings().stale_ttl_days)
-    return {"swept": counts}
+    """Freshness + lean retention: mark stale/expired, then PRUNE past-deadline
+    opportunities from Neo4j + Qdrant. Cheap (no LLM) — safe for a cron/daily job."""
+    from ..maintenance import sweep_and_prune
+
+    return await sweep_and_prune()
+
+
+class RefreshRequest(BaseModel):
+    query: str
+
+
+@app.post("/maintenance/refresh")
+async def maintenance_refresh(req: RefreshRequest) -> dict:
+    """Bounded deep-research pass to discover new / update changed opportunities.
+    LLM-costly and explicit (not on the default daily job) to protect free tiers."""
+    from ..maintenance import refresh
+
+    return await refresh(req.query)
 
 
 @app.post("/pipeline/run")

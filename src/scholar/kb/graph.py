@@ -125,6 +125,22 @@ class GraphStore:
         )
         return {r["status"]: r["n"] for r in records}
 
+    async def prune_expired(self, cutoff: str) -> list[str]:
+        """Delete opportunities whose deadline is before ``cutoff`` (ISO date),
+        keeping the graph lean. Returns the pruned ids so the caller can also drop
+        the matching vectors. Two steps (collect ids, then DETACH DELETE)."""
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (op:Opportunity) WHERE op.deadline IS NOT NULL AND op.deadline < $cutoff "
+            "RETURN op.id AS id",
+            cutoff=cutoff,
+        )
+        ids = [r["id"] for r in records]
+        if ids:
+            await self._driver.execute_query(
+                "MATCH (op:Opportunity) WHERE op.id IN $ids DETACH DELETE op", ids=ids
+            )
+        return ids
+
     async def eligible(self, student: StudentProfile, opp_id: str) -> bool:
         """Hard-constraint gate evaluated in the graph (GPA / region / funding)."""
         records, _, _ = await self._driver.execute_query(

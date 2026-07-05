@@ -204,6 +204,19 @@ class VectorStore:
         self._client.upsert(collection_name=self._collection, points=points)
         log.info("upserted_vectors", n=len(points))
 
+    def delete_by_ids(self, opp_ids: list[str]) -> int:
+        """Remove opportunities from the vector store by content-addressed id
+        (used by the freshness sweep to prune expired opportunities)."""
+        if not opp_ids:
+            return 0
+        self.ensure_collection()
+        self._client.delete(
+            collection_name=self._collection,
+            points_selector=[_uuid_from(i) for i in opp_ids],
+        )
+        log.info("deleted_vectors", n=len(opp_ids))
+        return len(opp_ids)
+
     def fetch_by_id(self, opp_id: str) -> Opportunity | None:
         """Retrieve a single Opportunity by its content-addressed id, or None."""
         self.ensure_collection()

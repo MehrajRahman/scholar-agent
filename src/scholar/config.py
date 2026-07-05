@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     deep_max_pages: int = Field(10, alias="DEEP_MAX_PAGES")  # pages crawled/round
     stale_ttl_days: int = Field(21, alias="STALE_TTL_DAYS")
 
+    # Freshness & lean retention. The daily job (opt-in) sweeps stale/expired opps
+    # and PRUNES past-deadline ones from Neo4j+Qdrant so the KB stays small and
+    # current. The bounded "surf for new" refresh is LLM-costly, so it only runs
+    # in the daily job when MAINTENANCE_REFRESH_QUERY is set (protects free-tier).
+    maintenance_daily: bool = Field(False, alias="MAINTENANCE_DAILY")
+    expired_grace_days: int = Field(0, alias="EXPIRED_GRACE_DAYS")  # 0 = prune as soon as past
+    maintenance_refresh_query: str | None = Field(None, alias="MAINTENANCE_REFRESH_QUERY")
+
     # Recursive crawling (crawl4ai DFS). 0 = off (single-page, laptop default).
     # >0 follows links that many levels deep from each seed URL — powerful but
     # heavy (needs crawl4ai + a headless browser), best on a GPU/desktop machine.
