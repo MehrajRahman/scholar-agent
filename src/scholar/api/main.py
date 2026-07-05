@@ -39,6 +39,8 @@ try:
     from ..auth.router import router as auth_router
     from ..db import init_db
 
+    from .me import router as me_router
+
     _WEB_ENABLED = True
 except ImportError:  # [web] extra not installed
     _WEB_ENABLED = False
@@ -107,9 +109,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="scholar-agent", version="0.2.0", lifespan=lifespan)
 
-# Mount the accounts/auth API when the web layer is available.
+# Mount the accounts/auth + per-user data APIs when the web layer is available.
 if _WEB_ENABLED:
     app.include_router(auth_router)
+    app.include_router(me_router)
 
 
 @app.get("/health")
