@@ -79,6 +79,9 @@ class SavedApplication(Base):
     deadline: Mapped[str | None] = mapped_column(String(32), default=None)
     source_url: Mapped[str | None] = mapped_column(Text, default=None)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Requirement checklist: [{"label": "SOP", "done": false}, ...] (embedded JSON
+    # — a small, bounded, per-application list; no separate table needed).
+    checklist: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now

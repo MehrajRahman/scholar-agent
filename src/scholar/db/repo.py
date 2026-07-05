@@ -16,7 +16,7 @@ from .models import Profile, SavedApplication
 # Fields a client may set on an application (whitelist — never trust arbitrary keys).
 _APP_FIELDS = {
     "opportunity_ref", "title", "institution", "country",
-    "kind", "status", "deadline", "source_url", "notes",
+    "kind", "status", "deadline", "source_url", "notes", "checklist",
 }
 
 

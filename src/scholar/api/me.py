@@ -18,6 +18,7 @@ from ..db import repo
 router = APIRouter(prefix="/me", tags=["me"])
 
 Db = Annotated[Session, Depends(get_session)]
+_APP_NOT_FOUND = "application not found"
 
 
 # --- Schemas ---------------------------------------------------------------
@@ -36,6 +37,11 @@ class ProfileOut(BaseModel):
     updated_at: object | None = None
 
 
+class ChecklistItem(BaseModel):
+    label: str
+    done: bool = False
+
+
 class ApplicationCreate(BaseModel):
     title: str = Field(min_length=1)
     opportunity_ref: str | None = None
@@ -46,6 +52,7 @@ class ApplicationCreate(BaseModel):
     deadline: str | None = None
     source_url: str | None = None
     notes: str = ""
+    checklist: list[ChecklistItem] = Field(default_factory=list)
 
     @field_validator("status")
     @classmethod
@@ -64,6 +71,7 @@ class ApplicationUpdate(BaseModel):
     deadline: str | None = None
     source_url: str | None = None
     notes: str | None = None
+    checklist: list[ChecklistItem] | None = None
 
     @field_validator("status")
     @classmethod
@@ -85,8 +93,14 @@ class ApplicationOut(BaseModel):
     deadline: str | None
     source_url: str | None
     notes: str
+    checklist: list[ChecklistItem] = Field(default_factory=list)
     created_at: object
     updated_at: object
+
+    @field_validator("checklist", mode="before")
+    @classmethod
+    def _coerce_checklist(cls, v: object) -> object:
+        return v or []  # legacy rows migrated in may hold NULL
 
 
 # --- Profile ---------------------------------------------------------------
@@ -129,7 +143,7 @@ def create_application(body: ApplicationCreate, user: CurrentUser, session: Db) 
 def get_application(app_id: int, user: CurrentUser, session: Db) -> ApplicationOut:
     app = repo.get_application(session, user.id, app_id)
     if app is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "application not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _APP_NOT_FOUND)
     return ApplicationOut.model_validate(app)
 
 
@@ -139,11 +153,11 @@ def update_application(
 ) -> ApplicationOut:
     app = repo.update_application(session, user.id, app_id, body.model_dump(exclude_unset=True))
     if app is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "application not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _APP_NOT_FOUND)
     return ApplicationOut.model_validate(app)
 
 
 @router.delete("/applications/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_application(app_id: int, user: CurrentUser, session: Db) -> None:
     if not repo.delete_application(session, user.id, app_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "application not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _APP_NOT_FOUND)

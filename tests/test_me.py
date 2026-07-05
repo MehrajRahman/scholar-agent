@@ -105,3 +105,31 @@ def test_cross_user_isolation(client):
     # A still owns it, untouched
     a_view = client.get(f"/me/applications/{app_id}", headers=a)
     assert a_view.status_code == 200 and a_view.json()["status"] == "interested"
+
+
+def test_checklist_create_and_update(client):
+    h = _auth(client, "cl@x.com")
+    r = client.post(
+        "/me/applications",
+        json={"title": "PhD", "checklist": [{"label": "SOP"}, {"label": "IELTS", "done": True}]},
+        headers=h,
+    )
+    assert r.status_code == 201
+    assert [(i["label"], i["done"]) for i in r.json()["checklist"]] == [("SOP", False), ("IELTS", True)]
+
+    aid = r.json()["id"]
+    p = client.patch(f"/me/applications/{aid}", json={"checklist": [{"label": "SOP", "done": True}]}, headers=h)
+    assert p.status_code == 200 and p.json()["checklist"] == [{"label": "SOP", "done": True}]
+
+
+def test_checklist_out_coerces_legacy_null():
+    """A row migrated in with NULL checklist must serialise as []."""
+    from scholar.api.me import ApplicationOut
+
+    class Row:  # noqa: D401 - stand-in for a legacy ORM row
+        id, opportunity_ref, title, institution, country = 1, None, "x", None, None
+        kind, status, deadline, source_url, notes = "scholarship", "interested", None, None, ""
+        checklist = None
+        created_at = updated_at = "2026-01-01"
+
+    assert ApplicationOut.model_validate(Row()).checklist == []
