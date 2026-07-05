@@ -204,6 +204,15 @@ class VectorStore:
         self._client.upsert(collection_name=self._collection, points=points)
         log.info("upserted_vectors", n=len(points))
 
+    def count(self) -> int:
+        """Number of opportunities currently in the vector store (KB size)."""
+        try:
+            self.ensure_collection()
+            return self._client.count(collection_name=self._collection).count
+        except Exception as exc:  # noqa: BLE001
+            log.warning("count_failed", error=str(exc))
+            return 0
+
     def delete_by_ids(self, opp_ids: list[str]) -> int:
         """Remove opportunities from the vector store by content-addressed id
         (used by the freshness sweep to prune expired opportunities)."""

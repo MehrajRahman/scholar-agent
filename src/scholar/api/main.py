@@ -41,6 +41,7 @@ try:
     from ..db import init_db
 
     from .me import router as me_router
+    from .surf import router as surf_router
 
     _WEB_ENABLED = True
 except ImportError:  # [web] extra not installed
@@ -133,6 +134,7 @@ app = FastAPI(title="scholar-agent", version="0.2.0", lifespan=lifespan)
 if _WEB_ENABLED:
     app.include_router(auth_router)
     app.include_router(me_router)
+    app.include_router(surf_router)
 
 
 @app.get("/health")

@@ -38,6 +38,8 @@ def _auth(client: TestClient, email: str) -> dict:
 def test_endpoints_require_auth(client):
     assert client.get("/me/profile").status_code == 401
     assert client.get("/me/applications").status_code == 401
+    # the KB-builder surfer is expensive -> must be auth-gated too
+    assert client.post("/maintenance/surf", json={"keywords": ["x"]}).status_code == 401
 
 
 def test_profile_upsert_and_get(client):
