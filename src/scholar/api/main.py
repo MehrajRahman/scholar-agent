@@ -32,6 +32,17 @@ from ..state import PipelineState
 log = get_logger("api")
 _WEB_DIR = Path(__file__).resolve().parents[3] / "web"
 
+# The web-app layer (accounts + persistence) is optional: it needs the [web]
+# extra (SQLAlchemy, passlib, pyjwt). If those aren't installed, the pipeline API
+# still runs — the /auth routes are simply absent.
+try:
+    from ..auth.router import router as auth_router
+    from ..db import init_db
+
+    _WEB_ENABLED = True
+except ImportError:  # [web] extra not installed
+    _WEB_ENABLED = False
+
 
 class RunRequest(BaseModel):
     documents: list[str]
@@ -86,10 +97,19 @@ async def lifespan(app: FastAPI):
         get_vectors().ensure_collection()
     except Exception as exc:  # noqa: BLE001
         log.warning("qdrant_init_skipped", error=str(exc))
+    if _WEB_ENABLED:
+        try:
+            init_db()  # create the accounts/applications tables if missing
+        except Exception as exc:  # noqa: BLE001
+            log.warning("db_init_skipped", error=str(exc))
     yield
 
 
 app = FastAPI(title="scholar-agent", version="0.2.0", lifespan=lifespan)
+
+# Mount the accounts/auth API when the web layer is available.
+if _WEB_ENABLED:
+    app.include_router(auth_router)
 
 
 @app.get("/health")
