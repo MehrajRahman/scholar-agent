@@ -42,6 +42,7 @@ try:
 
     from .kb import router as kb_router
     from .me import router as me_router
+    from .studio import router as studio_router
     from .surf import router as surf_router
 
     _WEB_ENABLED = True
@@ -137,6 +138,7 @@ if _WEB_ENABLED:
     app.include_router(me_router)
     app.include_router(surf_router)
     app.include_router(kb_router)
+    app.include_router(studio_router)
 
 
 @app.get("/health")

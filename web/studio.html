@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>scholar-agent · writing studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] },
+      colors: { brand:{300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca'}, ink:{900:'#0b1020',800:'#11172e',700:'#1c2440'} },
+      boxShadow: { glow:'0 10px 40px -12px rgba(99,102,241,.45)' } } } };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    body{background:radial-gradient(1200px 600px at 15% -10%,rgba(99,102,241,.18),transparent 60%),
+         radial-gradient(900px 500px at 100% 0%,rgba(217,70,239,.12),transparent 55%),#07091a}
+    .glass{background:rgba(17,23,46,.72);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.06)}
+    .spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+    .fade-in{animation:fade .35s ease both}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    [x-cloak]{display:none!important}
+  </style>
+</head>
+
+<body class="font-sans text-slate-200 min-h-screen antialiased" x-data="studioApp()" x-init="init()" x-cloak>
+  <header class="max-w-5xl mx-auto px-5 pt-7 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-400 to-fuchsia-500 grid place-items-center shadow-glow"><span class="text-xl">🎯</span></div>
+      <div>
+        <h1 class="font-extrabold tracking-tight text-white text-lg leading-none">Writing Studio</h1>
+        <p class="text-xs text-slate-400 mt-0.5">IELTS & academic writing practice — honest band scoring, concrete feedback</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-sm">
+      <a href="/app/" class="text-slate-400 hover:text-white transition">⌂ Tracker</a>
+      <a href="/app/browse.html" class="text-slate-400 hover:text-white transition">📚 Browse</a>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 py-7">
+    <div class="grid lg:grid-cols-2 gap-5">
+
+      <!-- left: write -->
+      <div class="glass rounded-3xl p-6">
+        <span class="text-sm font-semibold text-white">1 · What are you practising?</span>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <template x-for="m in modes" :key="m.id">
+            <button @click="mode=m.id" :class="mode===m.id ? 'border-brand-400 bg-brand-500/10 text-white' : 'border-white/10 text-slate-400 hover:text-white'"
+              class="rounded-xl border p-3 text-left transition">
+              <p class="text-sm font-semibold" x-text="m.label"></p>
+              <p class="text-[11px] mt-0.5 opacity-70" x-text="m.hint"></p>
+            </button>
+          </template>
+        </div>
+
+        <div class="mt-4">
+          <span class="text-sm font-semibold text-white">2 · Task prompt <span class="text-slate-500 font-normal">(optional, improves scoring)</span></span>
+          <textarea x-model="prompt" rows="2" placeholder="Paste the essay question / task here…"
+            class="mt-2 w-full rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+          <div class="flex flex-wrap gap-1.5 mt-2" x-show="mode==='ielts_task2'">
+            <template x-for="p in samplePrompts" :key="p">
+              <button @click="prompt=p" class="text-[11px] px-2.5 py-1 rounded-full border border-white/10 text-slate-400 hover:text-white transition text-left">🎲 <span x-text="p.slice(0,60)+'…'"></span></button>
+            </template>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-white">3 · Your writing</span>
+            <span class="text-xs" :class="wordCount<minWords ? 'text-rose-400' : 'text-slate-500'" x-text="wordCount+' words'"></span>
+          </div>
+          <textarea x-model="text" rows="14" placeholder="Write or paste your essay / SOP here (min 50 words)…"
+            class="mt-2 w-full rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2.5 text-sm leading-relaxed placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+        </div>
+
+        <button @click="assess()" :disabled="busy || wordCount<minWords"
+          class="mt-4 w-full rounded-2xl py-3 font-semibold text-white bg-gradient-to-r from-brand-600 to-fuchsia-600 hover:from-brand-500 hover:to-fuchsia-500 disabled:opacity-50 transition shadow-glow">
+          <span x-show="!busy">🎯 Assess my writing</span>
+          <span x-show="busy" class="inline-flex items-center gap-2"><span class="h-4 w-4 rounded-full border-2 border-white border-t-transparent spin"></span> Examining… (~30–60s)</span>
+        </button>
+        <p x-show="error" class="text-sm text-rose-400 mt-2" x-text="error"></p>
+      </div>
+
+      <!-- right: feedback -->
+      <div>
+        <template x-if="!fb">
+          <div class="glass rounded-3xl p-10 text-center h-full grid place-items-center">
+            <div>
+              <div class="text-4xl mb-3">📝</div>
+              <p class="text-white font-semibold">Your feedback appears here</p>
+              <p class="text-sm text-slate-400 mt-1 max-w-xs mx-auto">Band scores on the four IELTS criteria, specific strengths & fixes, and rewrites of your weakest sentences.</p>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="fb">
+          <div class="space-y-4 fade-in">
+            <!-- bands -->
+            <div class="glass rounded-3xl p-6">
+              <div class="flex items-center gap-5">
+                <div class="relative h-20 w-20 shrink-0 rounded-full grid place-items-center"
+                     :style="`background: conic-gradient(${bandColor(fb.band_overall)} ${fb.band_overall/9*360}deg, rgba(255,255,255,.07) 0)`">
+                  <div class="h-16 w-16 rounded-full bg-ink-800 grid place-items-center">
+                    <span class="text-2xl font-extrabold text-white" x-text="fb.band_overall.toFixed(1)"></span>
+                  </div>
+                </div>
+                <div>
+                  <p class="font-bold text-white">Overall band estimate</p>
+                  <p class="text-xs text-slate-400 mt-0.5">AI estimate against public IELTS descriptors — a practice signal, not an official score.</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-4">
+                <template x-for="c in criteria" :key="c.key">
+                  <div class="rounded-xl bg-ink-800/50 p-3 flex items-center justify-between">
+                    <span class="text-xs text-slate-400" x-text="c.label"></span>
+                    <span class="text-sm font-bold" :style="`color:${bandColor(fb[c.key])}`" x-text="(fb[c.key]||0).toFixed(1)"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- strengths / improvements -->
+            <div class="glass rounded-2xl p-5">
+              <p class="text-sm font-semibold text-emerald-300 mb-2">✓ What's working</p>
+              <ul class="space-y-1.5">
+                <template x-for="(s,i) in fb.strengths" :key="'s'+i"><li class="text-sm text-slate-300 flex gap-2"><span class="text-emerald-400 shrink-0">•</span><span x-text="s"></span></li></template>
+              </ul>
+              <p class="text-sm font-semibold text-amber-300 mt-4 mb-2">▲ Focus on next</p>
+              <ul class="space-y-1.5">
+                <template x-for="(s,i) in fb.improvements" :key="'i'+i"><li class="text-sm text-slate-300 flex gap-2"><span class="text-amber-400 shrink-0">•</span><span x-text="s"></span></li></template>
+              </ul>
+            </div>
+
+            <!-- rewrites -->
+            <div class="glass rounded-2xl p-5" x-show="fb.rewrites && fb.rewrites.length">
+              <p class="text-sm font-semibold text-white mb-3">✍️ Sentence upgrades</p>
+              <div class="space-y-3">
+                <template x-for="(r,i) in fb.rewrites" :key="'r'+i">
+                  <div class="rounded-xl bg-ink-800/50 p-3">
+                    <p class="text-xs text-rose-300/90 line-through leading-relaxed" x-text="r.original"></p>
+                    <p class="text-sm text-emerald-300 mt-1.5 leading-relaxed" x-text="r.improved"></p>
+                    <p class="text-[11px] text-slate-500 mt-1.5" x-text="'Why: '+r.why"></p>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <button @click="fb=null" class="w-full rounded-xl py-2 text-sm text-slate-400 hover:text-white transition">↺ Assess another draft</button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function studioApp() {
+      return {
+        token: localStorage.getItem('scholar_token') || '',
+        mode: 'ielts_task2', prompt: '', text: '', fb: null, busy: false, error: '',
+        minWords: 50,
+        modes: [
+          {id:'ielts_task2', label:'IELTS Task 2', hint:'opinion / discussion essay'},
+          {id:'ielts_task1', label:'IELTS Task 1', hint:'chart / process report'},
+          {id:'sop', label:'SOP / Motivation', hint:'application statements'},
+          {id:'academic', label:'Academic', hint:'paragraphs & abstracts'},
+        ],
+        criteria: [
+          {key:'task_response', label:'Task response'},
+          {key:'coherence_cohesion', label:'Coherence & cohesion'},
+          {key:'lexical_resource', label:'Lexical resource'},
+          {key:'grammatical_range_accuracy', label:'Grammar range & accuracy'},
+        ],
+        samplePrompts: [
+          'Some people believe that universities should focus on providing academic skills, while others think they should prepare students for employment. Discuss both views and give your opinion.',
+          'In many countries, more people choose to study abroad for higher education. Do the advantages of this development outweigh the disadvantages?',
+          'Government investment in the arts is a waste of money; funds should be spent on science education instead. To what extent do you agree or disagree?',
+        ],
+
+        get wordCount(){ return this.text.trim() ? this.text.trim().split(/\s+/).length : 0; },
+        bandColor(b){ return b>=7 ? '#34d399' : b>=5.5 ? '#818cf8' : '#fb7185'; },
+
+        init(){ if(!this.token){ location.href='/app/'; } },
+        async assess(){
+          this.busy=true; this.error='';
+          try{
+            const r = await fetch('/studio/feedback', {method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+this.token},
+              body: JSON.stringify({mode:this.mode, prompt:this.prompt, text:this.text})});
+            if(r.status===401){ location.href='/app/'; return; }
+            const body = await r.json().catch(()=>null);
+            if(!r.ok) throw new Error((body && body.detail) || ('HTTP '+r.status));
+            this.fb = body;
+          }catch(e){ this.error='Could not assess: '+e.message; }
+          finally{ this.busy=false; }
+        },
+      };
+    }
+  </script>
+</body>
+</html>
