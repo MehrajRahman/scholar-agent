@@ -270,3 +270,34 @@ def update_professor(
 def delete_professor(prof_id: int, user: CurrentUser, session: Db) -> None:
     if not repo.delete_professor(session, user.id, prof_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, _PROF_NOT_FOUND)
+
+
+# --- Watchlist (standing interests, auto-surfed daily) ----------------------
+
+class WatchlistCreate(BaseModel):
+    keyword: str = Field(min_length=3, max_length=300)
+
+
+class WatchlistOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    keyword: str
+    active: bool
+    last_surfed_at: str | None
+    created_at: object
+
+
+@router.get("/watchlist", response_model=list[WatchlistOut])
+def list_watchlist(user: CurrentUser, session: Db) -> list[WatchlistOut]:
+    return [WatchlistOut.model_validate(w) for w in repo.list_watchlist(session, user.id)]
+
+
+@router.post("/watchlist", response_model=WatchlistOut, status_code=status.HTTP_201_CREATED)
+def add_watchlist(body: WatchlistCreate, user: CurrentUser, session: Db) -> WatchlistOut:
+    return WatchlistOut.model_validate(repo.add_watchlist_item(session, user.id, body.keyword))
+
+
+@router.delete("/watchlist/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_watchlist(item_id: int, user: CurrentUser, session: Db) -> None:
+    if not repo.delete_watchlist_item(session, user.id, item_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "watchlist item not found")

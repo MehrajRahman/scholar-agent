@@ -62,6 +62,31 @@
       <p x-show="error" class="text-sm text-rose-400 mt-3" x-text="error"></p>
     </div>
 
+    <!-- watchlist: standing interests, auto-surfed daily -->
+    <div class="glass rounded-2xl p-6 mt-6">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-sm font-semibold text-white">📌 Watchlist — surfed automatically every day</h3>
+        <button x-show="watchlist.length" @click="surfWatchlistNow()" :disabled="running"
+          class="text-xs rounded-lg px-3 py-1.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white transition">▶ Surf all now</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-3">Save your standing interests once — the daily job rotates through them and keeps the knowledge base growing while you sleep. (Enable with <code class="text-slate-400">MAINTENANCE_DAILY=true</code>.)</p>
+      <div class="flex gap-2 mb-3">
+        <input x-model="newWatch" @keydown.enter="addWatch()" placeholder="e.g. fully funded PhD machine learning Europe"
+          class="flex-1 rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        <button @click="addWatch()" :disabled="newWatch.trim().length<3" class="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-40 transition">＋ Watch</button>
+      </div>
+      <template x-if="watchlist.length===0"><p class="text-sm text-slate-500">Nothing watched yet.</p></template>
+      <div class="space-y-1.5">
+        <template x-for="w in watchlist" :key="w.id">
+          <div class="flex items-center gap-3 rounded-xl bg-ink-800/50 px-3 py-2 group">
+            <span class="flex-1 text-sm text-slate-200 truncate" x-text="w.keyword"></span>
+            <span class="text-[11px] text-slate-500 shrink-0" x-text="w.last_surfed_at ? ('surfed '+w.last_surfed_at.slice(0,10)) : 'never surfed'"></span>
+            <button @click="removeWatch(w)" class="text-slate-600 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition shrink-0">✕</button>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- live progress -->
     <div x-show="log.length || dbBefore!==null" class="glass rounded-2xl p-6 mt-6">
       <div class="flex items-center justify-between mb-4">
@@ -99,9 +124,32 @@
         keywords: '',
         examples: ['fully funded PhD computer science Germany','Erasmus Mundus scholarship 2026','DAAD scholarship AI','fully funded PhD machine learning Europe','Chevening scholarship UK','PhD position robotics Netherlands'],
         running: false, log: [], dbBefore: null, dbAfter: null, totalFound: 0, added: null, error: '',
+        watchlist: [], newWatch: '',
 
-        init(){ if(!this.token){ location.href='/app/'; } },
+        init(){ if(!this.token){ location.href='/app/'; return; } this.loadWatchlist(); },
         addExample(e){ this.keywords = (this.keywords.trim() ? this.keywords.trim()+'\n' : '') + e; },
+
+        async apiJson(path, opts={}){
+          opts.headers = Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+this.token}, opts.headers||{});
+          const r = await fetch(path, opts);
+          if(r.status===401){ location.href='/app/'; return null; }
+          if(r.status===204) return true;
+          return r.ok ? r.json() : null;
+        },
+        async loadWatchlist(){ this.watchlist = (await this.apiJson('/me/watchlist')) || []; },
+        async addWatch(){
+          const kw=this.newWatch.trim(); if(kw.length<3) return;
+          const created = await this.apiJson('/me/watchlist', {method:'POST', body: JSON.stringify({keyword: kw})});
+          if(created){ this.watchlist.unshift(created); this.newWatch=''; }
+        },
+        async removeWatch(w){
+          const ok = await this.apiJson('/me/watchlist/'+w.id, {method:'DELETE'});
+          if(ok) this.watchlist = this.watchlist.filter(x=>x.id!==w.id);
+        },
+        surfWatchlistNow(){
+          this.keywords = this.watchlist.map(w=>w.keyword).join('\n');
+          this.surf();
+        },
 
         async surf(){
           const kws = this.keywords.split('\n').map(s=>s.trim()).filter(Boolean);

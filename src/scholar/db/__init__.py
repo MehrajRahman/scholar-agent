@@ -7,6 +7,7 @@ from .models import (
     ProfessorContact,
     SavedApplication,
     User,
+    WatchlistItem,
 )
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "Profile",
     "SavedApplication",
     "ProfessorContact",
+    "WatchlistItem",
     "APPLICATION_STATUSES",
     "PROFESSOR_STATUSES",
 ]

@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Profile, ProfessorContact, SavedApplication
+from .models import Profile, ProfessorContact, SavedApplication, WatchlistItem
 
 # Fields a client may set on an application (whitelist — never trust arbitrary keys).
 _APP_FIELDS = {
@@ -147,3 +147,59 @@ def delete_professor(session: Session, user_id: int, prof_id: int) -> bool:
     session.delete(prof)
     session.commit()
     return True
+
+
+# --- Watchlist (standing interests, auto-surfed by the daily job) ----------
+
+def list_watchlist(session: Session, user_id: int) -> list[WatchlistItem]:
+    return list(
+        session.scalars(
+            select(WatchlistItem)
+            .where(WatchlistItem.user_id == user_id)
+            .order_by(WatchlistItem.created_at.desc())
+        )
+    )
+
+
+def add_watchlist_item(session: Session, user_id: int, keyword: str) -> WatchlistItem:
+    item = WatchlistItem(user_id=user_id, keyword=keyword.strip())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+def delete_watchlist_item(session: Session, user_id: int, item_id: int) -> bool:
+    item = session.scalar(
+        select(WatchlistItem).where(
+            WatchlistItem.id == item_id, WatchlistItem.user_id == user_id
+        )
+    )
+    if item is None:
+        return False
+    session.delete(item)
+    session.commit()
+    return True
+
+
+def due_watchlist_items(session: Session, limit: int) -> list[WatchlistItem]:
+    """Active items across ALL users, least-recently-surfed first (never-surfed
+    before everything else). The daily job takes the top ``limit`` — a rotation,
+    so every keyword gets its turn without exceeding the daily budget.
+
+    NULLs-first is expressed with a portable boolean sort key (SQLite + Postgres).
+    """
+    stmt = (
+        select(WatchlistItem)
+        .where(WatchlistItem.active.is_(True))
+        .order_by(WatchlistItem.last_surfed_at.isnot(None), WatchlistItem.last_surfed_at.asc())
+        .limit(max(0, limit))
+    )
+    return list(session.scalars(stmt))
+
+
+def mark_watchlist_surfed(session: Session, item_id: int, surfed_at: str) -> None:
+    item = session.get(WatchlistItem, item_id)
+    if item is not None:
+        item.last_surfed_at = surfed_at
+        session.commit()

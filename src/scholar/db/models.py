@@ -48,6 +48,9 @@ class User(Base):
     professors: Mapped[list[ProfessorContact]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    watchlist: Mapped[list[WatchlistItem]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -124,3 +127,22 @@ class ProfessorContact(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="professors")
+
+
+class WatchlistItem(Base):
+    """A standing search interest. The daily maintenance job rotates through
+    active items (oldest-surfed first) and surfs the web for each, so the
+    knowledge base keeps growing without the user doing anything."""
+
+    __tablename__ = "watchlist_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    keyword: Mapped[str] = mapped_column(String(300))
+    active: Mapped[bool] = mapped_column(default=True)
+    last_surfed_at: Mapped[str | None] = mapped_column(String(32), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    user: Mapped[User] = relationship(back_populates="watchlist")

@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     maintenance_daily: bool = Field(False, alias="MAINTENANCE_DAILY")
     expired_grace_days: int = Field(0, alias="EXPIRED_GRACE_DAYS")  # 0 = prune as soon as past
     maintenance_refresh_query: str | None = Field(None, alias="MAINTENANCE_REFRESH_QUERY")
+    # How many watchlist keywords the daily job surfs (rotation, oldest first).
+    # Each is a bounded deep pass (~18 LLM calls), so keep this small on free tiers.
+    watchlist_daily_limit: int = Field(3, alias="WATCHLIST_DAILY_LIMIT")
 
     # Recursive crawling (crawl4ai DFS). 0 = off (single-page, laptop default).
     # >0 follows links that many levels deep from each seed URL — powerful but

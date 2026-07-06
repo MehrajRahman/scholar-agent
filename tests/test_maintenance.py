@@ -43,9 +43,11 @@ async def test_sweep_and_prune_wires_graph_and_vectors(monkeypatch):
 async def test_run_daily_skips_refresh_without_query(monkeypatch):
     monkeypatch.setattr(m, "get_graph", lambda: _FakeGraph())
     monkeypatch.setattr(m, "get_vectors", lambda: _FakeVectors())
+    # keep the test hermetic: no real DB lookup / no real surfing
+    monkeypatch.setattr(m, "_due_watchlist", lambda: [])
     # default config has no refresh query -> refresh (LLM) must NOT run
     result = await m.run_daily()
-    assert "refresh" not in result
+    assert "refresh" not in result and "watchlist" not in result
 
 
 def test_maintenance_settings_defaults():
