@@ -372,9 +372,55 @@ a cron or manual trigger.
 freshness (prune stale, keep the KB small); the *expensive* surfing is explicit
 and budget-aware. Minimal, low-resource, and it never surprises the user.
 
-### 14.4 Success gallery (next content module)
+### 14.4 Success gallery (content module — see also §15)
 The counterpart to lean retention: instead of hoarding dead opportunities, keep a
 small, curated set of **successful-candidate examples + their documents** (winning
 SOPs, motivation letters) as inspiration. A future `SuccessStory` model + a
 read-mostly gallery page — high signal, tiny storage. Not built yet; noted so the
 retention story is complete.
+
+---
+
+## 15. Project examination (2026-07-06): gaps → "one-stop solution" roadmap
+
+Audit of the shipped product (20 commits, 75 tests, Phases 0–2 + KB
+builder/freshness done) against the full aspirant journey. Three goal areas,
+ranked findings within each.
+
+### 15.1 "Track ALL available opportunities" — from manual tool to autonomous tracker
+
+| # | Gap (evidence) | Improvement | Effort |
+|---|---|---|---|
+| A1 | **Surfing is manual.** KB grows only when the user visits /app/surf.html or via ONE global env query (`MAINTENANCE_REFRESH_QUERY`). | **Watchlists**: per-user standing keywords (`Watchlist` table). The daily job rotates through all users' watchlists (bounded N/day) — the KB then grows *continuously without user action*. This is the single change that makes "tracks all available scholarships" true. | M |
+| A2 | **KB is invisible.** Opportunities land in Neo4j/Qdrant but there is no page to browse them — only CV-deep-search or fast-mode reach them. | **Browse page** (`/app/browse.html`): list/filter the KB (field, country, kind, deadline-soon) + "Save to pipeline" per card. Makes the KB a living catalog the user checks daily. Data + endpoints mostly exist. | S–M |
+| B1 | **Structured registries unused.** `search_nsf`/`search_nih` exist as tools but are never called in discovery; EURAXESS/DAAD have predictable feeds. Tavily-only discovery misses registry depth. | Source adapters: wire NSF/NIH into the surfer; add 1–2 registry adapters (EURAXESS first). | M |
+| B2 | **Extraction fumbles on the FAST tier** (Groq-8B → `structured_validation_failed`, occasionally 0-yield runs). | Per-role model override (e.g. `MODEL_FAST_OVERRIDE=gemini-2.5-flash`) so extraction uses a stronger model without editing providers.json. | S |
+
+### 15.2 "Help me proceed with the application" — close the assistant loop
+
+| # | Gap | Improvement | Effort |
+|---|---|---|---|
+| C1 | **Drafts are disconnected.** `/draft` works only on discover results; output vanishes — nothing lands on the application or professor record. | "✍️ Draft email/SOP" buttons **inside** the application + professor drawers; persist output (professor thread message / application document). Turns the CRM into an assistant. | M |
+| C2 | **No document home.** SOPs/CVs/letters have no storage or versions (`Document` model from §5 unbuilt). | `Document` table + list UI in the application drawer; AI drafts save into it. | M |
+| C3 | **Deadlines don't reach a calendar.** `build_ics` exists but only inside the kit artifact. | `GET /me/calendar.ics` (all deadlines + follow-ups) + a "📅 Calendar" button. Trivial reuse. | S |
+| C4 | No reminders beyond the dashboard. | Defer email/push (infra); dashboard nudges cover the MVP. | L (defer) |
+
+### 15.3 English / IELTS preparation — verdict
+
+Building a *full* IELTS course (listening/reading/speaking, mock tests) is a
+content business, off-core — **don't build**. The right-sized, high-leverage
+version is a **Writing Studio**: IELTS Task 1/2 and academic/SOP writing
+practice powered by the existing structured-LLM machinery — band-style scoring
+against public descriptors, rubric feedback (task response, coherence, lexical
+resource, grammar), and targeted rewrite suggestions. Dual-purpose by design:
+IELTS practice **and** better SOPs/motivation letters (which the Quality Gate
+already fact-checks). One router + one page + prompt templates; no new infra.
+Speaking practice via browser speech APIs is a possible later add, not now.
+
+### 15.4 Recommended build order
+
+1. **A1 Watchlists + auto-surf** — converts the product from tool → autonomous tracker (the user's core ask).
+2. **A2 Browse page** — makes the continuously-growing KB visible and actionable.
+3. **C1+C3 Application assistant wiring** (drafts in drawers + calendar export).
+4. **Writing Studio** (§15.3).
+5. Fillers: B2 per-role model, C2 documents, success gallery (§14.4), B1 registry adapters, JSON data export.
