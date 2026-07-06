@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -95,12 +96,13 @@ class ApplicationOut(BaseModel):
     source_url: str | None
     notes: str
     checklist: list[ChecklistItem] = Field(default_factory=list)
+    documents: list[dict] = Field(default_factory=list)
     created_at: object
     updated_at: object
 
-    @field_validator("checklist", mode="before")
+    @field_validator("checklist", "documents", mode="before")
     @classmethod
-    def _coerce_checklist(cls, v: object) -> object:
+    def _coerce_lists(cls, v: object) -> object:
         return v or []  # legacy rows migrated in may hold NULL
 
 
@@ -301,3 +303,138 @@ def add_watchlist(body: WatchlistCreate, user: CurrentUser, session: Db) -> Watc
 def delete_watchlist(item_id: int, user: CurrentUser, session: Db) -> None:
     if not repo.delete_watchlist_item(session, user.id, item_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "watchlist item not found")
+
+
+# --- Application assistant ---------------------------------------------------
+
+@router.get("/calendar.ics")
+def calendar_ics(user: CurrentUser, session: Db) -> Response:
+    """All the user's deadlines + professor follow-ups as one importable calendar."""
+    from ..ics import build_ics
+
+    events = [
+        {"title": f"Deadline: {a.title}" + (f" ({a.institution})" if a.institution else ""),
+         "date": a.deadline, "url": a.source_url}
+        for a in repo.list_applications(session, user.id)
+    ] + [
+        {"title": f"Follow up: {p.name}" + (f" ({p.university})" if p.university else ""),
+         "date": p.next_followup_at}
+        for p in repo.list_professors(session, user.id)
+    ]
+    ics = build_ics(events, calendar_name="My scholarship journey")
+    return Response(
+        content=ics,
+        media_type="text/calendar",
+        headers={"Content-Disposition": 'attachment; filename="scholar-deadlines.ics"'},
+    )
+
+
+def _student_profile(session: Session, user_id: int):
+    """The user's saved StudentProfile, or a minimal one so drafting still works."""
+    from ..schemas import StudentProfile
+
+    row = repo.get_profile(session, user_id)
+    if row and row.data:
+        try:
+            return StudentProfile.model_validate(row.data)
+        except Exception:  # noqa: BLE001 - fall through to the minimal profile
+            pass
+    return StudentProfile(full_name=(row.full_name if row else "") or "Applicant")
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
+
+
+@router.post("/applications/{app_id}/draft", response_model=ApplicationOut)
+async def draft_for_application(app_id: int, user: CurrentUser, session: Db) -> ApplicationOut:
+    """Draft a grounded cold email + SOP for THIS saved application and persist
+    both as documents on the record. Works for KB-saved apps (full opportunity
+    context) and manually-added ones (context synthesized from the card)."""
+    from ..agents.scribe import scribe_node
+    from ..kb import get_vectors
+    from ..schemas.opportunity import Funding, Opportunity, OpportunityKind
+    from ..state import PipelineState
+
+    app_row = repo.get_application(session, user.id, app_id)
+    if app_row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _APP_NOT_FOUND)
+
+    opp = get_vectors().fetch_by_id(app_row.opportunity_ref) if app_row.opportunity_ref else None
+    if opp is None:  # manual application -> synthesize the opportunity context
+        kind_map = {"phd": OpportunityKind.phd_position, "masters": OpportunityKind.masters_position,
+                    "postdoc": OpportunityKind.postdoc}
+        opp = Opportunity(
+            title=app_row.title,
+            kind=kind_map.get(app_row.kind, OpportunityKind.scholarship),
+            university=app_row.institution,
+            deadline=app_row.deadline,
+            description=app_row.notes or "",
+            funding=Funding(),
+            source_url=app_row.source_url or f"manual://application/{app_row.id}",
+        )
+
+    state: PipelineState = {
+        "profile": _student_profile(session, user.id),
+        "shortlist": [opp], "opportunities": [opp], "matches": [],
+        "current_index": 0, "revision_count": 0,
+    }
+    try:
+        bundle = (await scribe_node(state)).get("draft")
+    except Exception as exc:  # noqa: BLE001 - surface a clean error to the UI
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"draft failed: {exc}") from exc
+    if bundle is None:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "draft failed")
+
+    now = _now_iso()
+    app_row.documents = list(app_row.documents or []) + [
+        {"type": "cold_email", "title": bundle.cold_email.subject or "Cold email",
+         "body": bundle.cold_email.body, "created_at": now},
+        {"type": "sop", "title": bundle.sop.title or "Statement of Purpose",
+         "body": bundle.sop.body, "created_at": now},
+    ]
+    session.commit()
+    session.refresh(app_row)
+    return ApplicationOut.model_validate(app_row)
+
+
+class DraftEmailOut(BaseModel):
+    subject: str
+    body: str
+
+
+@router.post("/professors/{prof_id}/draft_email", response_model=DraftEmailOut)
+async def draft_professor_email(prof_id: int, user: CurrentUser, session: Db) -> DraftEmailOut:
+    """Draft a grounded cold email to THIS professor. Returned (not auto-logged):
+    the UI prefills the compose box so the user reviews/edits, then logs it —
+    keeping the thread a record of what actually happened."""
+    from ..llm import Role, get_llm
+    from ..schemas import ColdEmail
+
+    prof = repo.get_professor(session, user.id, prof_id)
+    if prof is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _PROF_NOT_FOUND)
+
+    profile = _student_profile(session, user.id)
+    linked = (
+        repo.get_application(session, user.id, prof.linked_application_id)
+        if prof.linked_application_id else None
+    )
+    system = (
+        "You write concise, specific academic cold emails (<200 words). Ground every "
+        "claim about the applicant in their profile and about the professor in the "
+        "provided record. No invented papers, no flattery clichés."
+    )
+    userload = (
+        f"APPLICANT PROFILE:\n{profile.model_dump_json()}\n\n"
+        f"PROFESSOR:\nname={prof.name} university={prof.university or '?'} "
+        f"department={prof.department or '?'}\nresearch fit (user's notes): {prof.research_fit or '-'}\n"
+        + (f"\nTARGET POSITION: {linked.title} at {linked.institution or '?'}\n" if linked else "")
+    )
+    try:
+        email = await get_llm().structured(Role.SCRIBE, system, userload, ColdEmail)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"draft failed: {exc}") from exc
+    return DraftEmailOut(subject=email.subject, body=email.body)

@@ -21,6 +21,7 @@
     .glass{background:rgba(17,23,46,.72);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.06)}
     .card-hover{transition:transform .2s,border-color .2s}.card-hover:hover{transform:translateY(-2px);border-color:rgba(129,140,248,.4)}
     .fade-in{animation:fade .35s ease both}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    .spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
     [x-cloak]{display:none!important}
     .col-scroll::-webkit-scrollbar,.board::-webkit-scrollbar{height:10px;width:10px}
     .col-scroll::-webkit-scrollbar-thumb,.board::-webkit-scrollbar-thumb{background:#2a3358;border-radius:8px}
@@ -73,9 +74,11 @@
               <a href="/app/discover.html" class="rounded-lg px-3 py-1.5 font-medium text-slate-400 hover:text-white transition">🔍 Discover</a>
               <a href="/app/browse.html" class="rounded-lg px-3 py-1.5 font-medium text-slate-400 hover:text-white transition">📚 Browse</a>
               <a href="/app/surf.html" class="rounded-lg px-3 py-1.5 font-medium text-slate-400 hover:text-white transition">🌐 Build KB</a>
+              <a href="/app/studio.html" class="rounded-lg px-3 py-1.5 font-medium text-slate-400 hover:text-white transition">🎯 Studio</a>
             </nav>
           </div>
           <div class="flex items-center gap-3">
+            <button @click="downloadCalendar()" class="text-xs text-slate-400 hover:text-white transition" title="Download all deadlines + follow-ups as .ics">📅 Calendar</button>
             <span class="text-xs text-slate-400 hidden sm:block" x-text="email"></span>
             <button @click="logout()" class="text-xs text-slate-400 hover:text-white transition">Log out</button>
           </div>
@@ -318,6 +321,35 @@
             <textarea x-model="detail.notes" rows="4" placeholder="Notes, professor contacts, todos…"
               class="mt-1 w-full rounded-lg bg-ink-800/60 border border-white/10 px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
 
+            <!-- AI-drafted materials -->
+            <div class="mt-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-semibold text-white">Materials</span>
+                <button @click="draftForApplication()" :disabled="draftingApp"
+                  class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 disabled:opacity-50 transition">
+                  <span x-show="!draftingApp">✍️ Draft email + SOP</span>
+                  <span x-show="draftingApp" class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full border-2 border-white border-t-transparent spin"></span> Drafting… (~1 min)</span>
+                </button>
+              </div>
+              <p x-show="!detail.documents.length" class="text-xs text-slate-500">No drafts yet — generate a grounded cold email + Statement of Purpose for this application.</p>
+              <div class="space-y-2">
+                <template x-for="(doc,di) in detail.documents" :key="di">
+                  <details class="rounded-xl bg-ink-800/50 p-3">
+                    <summary class="cursor-pointer text-sm font-medium text-slate-200 flex items-center justify-between">
+                      <span class="truncate" x-text="doc.title"></span>
+                      <span class="text-[10px] text-slate-500 shrink-0 ml-2" x-text="(doc.type==='sop'?'SOP':'Email')+' · '+(doc.created_at||'').slice(0,10)"></span>
+                    </summary>
+                    <pre class="whitespace-pre-wrap text-xs text-slate-300 mt-2 leading-relaxed max-h-56 overflow-auto" x-text="doc.body"></pre>
+                    <div class="mt-2 flex gap-3">
+                      <button @click="copyText(doc.body)" class="text-xs text-brand-400 hover:text-brand-300">⧉ Copy</button>
+                      <button @click="download(doc.body, (doc.type||'draft')+'.txt')" class="text-xs text-brand-400 hover:text-brand-300">⬇ Download</button>
+                    </div>
+                  </details>
+                </template>
+              </div>
+              <p x-show="draftAppError" class="text-xs text-rose-400 mt-2" x-text="draftAppError"></p>
+            </div>
+
             <div class="flex gap-2 mt-5">
               <button @click="saveDetail()" class="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-fuchsia-600 hover:from-brand-500 hover:to-fuchsia-500 transition">Save changes</button>
               <button @click="closeDetail()" class="rounded-xl px-4 py-2.5 text-sm text-slate-400 hover:text-white transition">Cancel</button>
@@ -383,7 +415,15 @@
                   <input x-model="newMsg.subject" placeholder="Subject" class="flex-1 rounded-lg bg-ink-800/60 border border-white/10 px-2 py-1 text-xs focus:outline-none" />
                 </div>
                 <textarea x-model="newMsg.body" rows="2" placeholder="What was said…" class="w-full rounded-lg bg-ink-800/60 border border-white/10 px-2 py-1 text-xs focus:outline-none"></textarea>
-                <button @click="addMessage()" class="w-full rounded-lg py-1.5 text-xs bg-brand-600 hover:bg-brand-500 text-white transition">＋ Log message</button>
+                <div class="flex gap-2">
+                  <button @click="draftProfEmail()" :disabled="draftingProf"
+                    class="flex-1 rounded-lg py-1.5 text-xs border border-brand-400/40 text-brand-300 hover:text-white hover:bg-brand-600/30 disabled:opacity-50 transition">
+                    <span x-show="!draftingProf">✍️ Draft with AI</span>
+                    <span x-show="draftingProf" class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-full border-2 border-brand-300 border-t-transparent spin"></span> Drafting…</span>
+                  </button>
+                  <button @click="addMessage()" class="flex-1 rounded-lg py-1.5 text-xs bg-brand-600 hover:bg-brand-500 text-white transition">＋ Log message</button>
+                </div>
+                <p x-show="draftProfError" class="text-[11px] text-rose-400" x-text="draftProfError"></p>
               </div>
             </div>
 
@@ -414,6 +454,7 @@
         newProf: { name:'', university:'', department:'', email:'', research_fit:'', status:'to_contact', next_followup_at:'' },
         showAdd: false, showAddProf: false, toast: '',
         detail: null, newItem: '',
+        draftingApp: false, draftAppError: '', draftingProf: false, draftProfError: '',
         profDetail: null, newMsg: { direction:'sent', subject:'', body:'' },
         profStatuses: ['to_contact','emailed','replied','in_conversation','meeting','closed'],
         profStatusMeta: {
@@ -451,8 +492,9 @@
         openDetail(a){
           this.detail = { id:a.id, title:a.title, institution:a.institution||'', country:a.country||'',
             kind:a.kind, status:a.status, deadline:a.deadline||'', source_url:a.source_url, notes:a.notes||'',
-            checklist:(a.checklist||[]).map(i=>({label:i.label, done:!!i.done})) };
-          this.newItem='';
+            checklist:(a.checklist||[]).map(i=>({label:i.label, done:!!i.done})),
+            documents:(a.documents||[]).map(d=>({...d})) };
+          this.newItem=''; this.draftAppError='';
         },
         closeDetail(){ this.detail=null; },
         addItem(){ const l=this.newItem.trim(); if(l){ this.detail.checklist.push({label:l, done:false}); this.newItem=''; } },
@@ -465,6 +507,49 @@
             deadline:d.deadline, notes:d.notes, checklist:d.checklist };
           const upd=await this.api('/me/applications/'+d.id, {method:'PATCH', body:JSON.stringify(body)});
           if(upd){ const i=this.applications.findIndex(x=>x.id===upd.id); if(i>=0) this.applications[i]=upd; this.detail=null; this.showToast('Saved'); }
+        },
+
+        // --- application assistant ---
+        copyText(t){ if(t){ navigator.clipboard.writeText(t); this.showToast('Copied'); } },
+        download(t, name){
+          if(!t) return;
+          const a=document.createElement('a');
+          a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(t);
+          a.download=name; a.click(); this.showToast('Downloaded '+name);
+        },
+        async downloadCalendar(){
+          const r = await fetch('/me/calendar.ics', {headers:{'Authorization':'Bearer '+this.token}});
+          if(!r.ok){ this.showToast('Could not build calendar'); return; }
+          const blob = await r.blob();
+          const a=document.createElement('a');
+          a.href=URL.createObjectURL(blob); a.download='scholar-deadlines.ics'; a.click();
+          URL.revokeObjectURL(a.href); this.showToast('Calendar downloaded — import it into Google/Apple Calendar');
+        },
+        async draftForApplication(){
+          if(!this.detail || this.draftingApp) return;
+          this.draftingApp=true; this.draftAppError='';
+          try{
+            const upd = await this.api('/me/applications/'+this.detail.id+'/draft', {method:'POST'});
+            if(upd){
+              const i=this.applications.findIndex(x=>x.id===upd.id);
+              if(i>=0){ this.applications[i]=upd; }
+              this.detail.documents=(upd.documents||[]).map(d=>({...d}));
+              this.showToast('Draft ready — review below');
+            }
+          }catch(e){ this.draftAppError='Could not draft: '+e.message; }
+          finally{ this.draftingApp=false; }
+        },
+        async draftProfEmail(){
+          if(!this.profDetail || this.draftingProf) return;
+          this.draftingProf=true; this.draftProfError='';
+          try{
+            const d = await this.api('/me/professors/'+this.profDetail.id+'/draft_email', {method:'POST'});
+            if(d){
+              this.newMsg={ direction:'sent', subject:d.subject||'', body:d.body||'' };
+              this.showToast('Draft ready — review, edit, then Log message');
+            }
+          }catch(e){ this.draftProfError='Could not draft: '+e.message; }
+          finally{ this.draftingProf=false; }
         },
 
         // --- professors (outreach CRM) ---

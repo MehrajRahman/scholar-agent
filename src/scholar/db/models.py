@@ -93,6 +93,9 @@ class SavedApplication(Base):
     # Requirement checklist: [{"label": "SOP", "done": false}, ...] (embedded JSON
     # — a small, bounded, per-application list; no separate table needed).
     checklist: Mapped[list] = mapped_column(JSON, default=list)
+    # AI-drafted materials for THIS application: [{"type": "cold_email"|"sop",
+    # "title", "body", "created_at"}]. Server-generated (never client-set).
+    documents: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now
