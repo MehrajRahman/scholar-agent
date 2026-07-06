@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>scholar-agent · browse opportunities</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] },
+      colors: { brand:{300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca'}, ink:{900:'#0b1020',800:'#11172e',700:'#1c2440'} },
+      boxShadow: { glow:'0 10px 40px -12px rgba(99,102,241,.45)' } } } };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    body{background:radial-gradient(1200px 600px at 15% -10%,rgba(99,102,241,.18),transparent 60%),
+         radial-gradient(900px 500px at 100% 0%,rgba(217,70,239,.12),transparent 55%),#07091a}
+    .glass{background:rgba(17,23,46,.72);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.06)}
+    .card-hover{transition:transform .2s,border-color .2s}.card-hover:hover{transform:translateY(-2px);border-color:rgba(129,140,248,.4)}
+    .spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+    [x-cloak]{display:none!important}
+    .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .line-clamp-3{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  </style>
+</head>
+
+<body class="font-sans text-slate-200 min-h-screen antialiased" x-data="browseApp()" x-init="init()" x-cloak>
+  <header class="max-w-6xl mx-auto px-5 pt-7 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-400 to-fuchsia-500 grid place-items-center shadow-glow"><span class="text-xl">📚</span></div>
+      <div>
+        <h1 class="font-extrabold tracking-tight text-white text-lg leading-none">Browse opportunities</h1>
+        <p class="text-xs text-slate-400 mt-0.5">everything the surfer & your watchlist have collected</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-sm">
+      <a href="/app/" class="text-slate-400 hover:text-white transition">⌂ Tracker</a>
+      <a href="/app/discover.html" class="text-slate-400 hover:text-white transition">🔍 Discover</a>
+      <a href="/app/surf.html" class="text-slate-400 hover:text-white transition">🌐 Build KB</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-5 py-7">
+
+    <!-- filter bar -->
+    <div class="glass rounded-2xl p-4 mb-5">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <input x-model="q" placeholder="Search title, university, description…"
+          class="flex-1 rounded-xl bg-ink-800/60 border border-white/10 px-3 py-2 text-sm placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        <div class="flex gap-1.5 flex-wrap">
+          <template x-for="k in kinds" :key="k.id">
+            <button @click="kind = (kind===k.id ? '' : k.id)"
+              :class="kind===k.id ? 'bg-brand-500/20 border-brand-400 text-white' : 'border-white/10 text-slate-400 hover:text-white'"
+              class="rounded-full border px-3 py-1.5 text-xs font-medium transition" x-text="k.label"></button>
+          </template>
+          <button @click="fundedOnly=!fundedOnly"
+            :class="fundedOnly ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200' : 'border-white/10 text-slate-400 hover:text-white'"
+            class="rounded-full border px-3 py-1.5 text-xs font-medium transition">💰 Fully funded</button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between mt-3">
+        <p class="text-xs text-slate-500"><span x-text="filtered.length"></span> of <span x-text="opps.length"></span> opportunities · sorted by soonest deadline</p>
+        <button @click="load()" class="text-xs text-brand-400 hover:text-brand-300 transition">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- loading / empty -->
+    <div x-show="loading" class="grid place-items-center py-16">
+      <div class="h-8 w-8 rounded-full border-2 border-brand-400 border-t-transparent spin"></div>
+    </div>
+    <template x-if="!loading && opps.length===0">
+      <div class="glass rounded-3xl p-10 text-center max-w-xl mx-auto">
+        <div class="text-4xl mb-3">🗄️</div>
+        <p class="text-white font-semibold">The knowledge base is empty</p>
+        <p class="text-sm text-slate-400 mt-1">Surf some topics to fill it — or add watchlist keywords and let the daily job collect for you.</p>
+        <a href="/app/surf.html" class="inline-block mt-5 rounded-xl px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white transition">🌐 Build the knowledge base</a>
+      </div>
+    </template>
+
+    <!-- cards -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <template x-for="o in filtered" :key="o.id">
+        <div class="glass card-hover rounded-2xl p-4 border border-white/8 flex flex-col">
+          <div class="flex items-start justify-between gap-2">
+            <p class="text-sm font-semibold text-white leading-snug line-clamp-2" x-text="o.title"></p>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300 shrink-0" x-text="prettify(o.kind)"></span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1 truncate" x-text="o.university || '—'"></p>
+          <p x-show="o.professor" class="text-[11px] text-slate-500 mt-0.5 truncate" x-text="'Supervisor: '+o.professor"></p>
+          <p class="text-xs text-slate-500 mt-2 line-clamp-3 flex-1" x-text="o.description"></p>
+          <div class="flex items-center gap-2 mt-3 flex-wrap">
+            <span x-show="o.fully_funded" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">Fully funded</span>
+            <span x-show="o.deadline" class="text-[10px] px-2 py-0.5 rounded-full" :class="soon(o) ? 'bg-rose-500/15 text-rose-300' : 'bg-amber-500/15 text-amber-200'" x-text="'⏳ '+o.deadline"></span>
+            <span x-show="!o.deadline" class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-500">no deadline listed</span>
+          </div>
+          <div class="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
+            <a :href="o.source_url" target="_blank" rel="noopener" class="text-[11px] text-brand-400 hover:text-brand-300">🔗 source ↗</a>
+            <button @click="save(o)" :disabled="isSaved(o)"
+              :class="isSaved(o) ? 'bg-emerald-500/15 text-emerald-300 cursor-default' : 'text-white bg-brand-600 hover:bg-brand-500'"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+              x-text="isSaved(o) ? '✓ In pipeline' : '＋ Save'"></button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <div x-show="toast" x-transition class="fixed bottom-5 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-white shadow-glow z-30" x-text="toast"></div>
+
+  <script>
+    function browseApp() {
+      return {
+        token: localStorage.getItem('scholar_token') || '',
+        opps: [], savedRefs: [], loading: true, toast: '',
+        q: '', kind: '', fundedOnly: false,
+        kinds: [
+          {id:'scholarship',label:'Scholarships'},{id:'phd_position',label:'PhD'},
+          {id:'masters_position',label:"Master's"},{id:'postdoc',label:'Postdoc'},{id:'grant',label:'Grants'},
+        ],
+
+        get filtered(){
+          const needle=this.q.trim().toLowerCase();
+          return this.opps.filter(o=>{
+            if(this.kind && o.kind!==this.kind) return false;
+            if(this.fundedOnly && !o.fully_funded) return false;
+            if(!needle) return true;
+            return ((o.title||'')+' '+(o.university||'')+' '+(o.description||'')+' '+(o.professor||'')).toLowerCase().includes(needle);
+          });
+        },
+        prettify(s){ return (s||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); },
+        soon(o){
+          if(!o.deadline) return false;
+          const diff=(new Date(o.deadline)-new Date())/864e5;
+          return diff>=0 && diff<=30;
+        },
+        isSaved(o){ return this.savedRefs.includes(o.id); },
+        showToast(m){ this.toast=m; setTimeout(()=>this.toast='',1800); },
+
+        init(){ if(!this.token){ location.href='/app/'; return; } this.load(); },
+        async apiJson(path, opts={}){
+          opts.headers = Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+this.token}, opts.headers||{});
+          const r = await fetch(path, opts);
+          if(r.status===401){ location.href='/app/'; return null; }
+          return r.ok ? r.json() : null;
+        },
+        async load(){
+          this.loading=true;
+          const [opps, apps] = await Promise.all([
+            this.apiJson('/kb/opportunities'),
+            this.apiJson('/me/applications'),
+          ]);
+          this.opps = opps || [];
+          this.savedRefs = (apps||[]).map(a=>a.opportunity_ref).filter(Boolean);
+          this.loading=false;
+        },
+        async save(o){
+          if(this.isSaved(o)) return;
+          const kindMap = {phd_position:'phd', masters_position:'masters', postdoc:'postdoc', scholarship:'scholarship', grant:'scholarship'};
+          const payload = { title:o.title, opportunity_ref:o.id, institution:o.university,
+            kind:kindMap[o.kind]||'scholarship', deadline:o.deadline, source_url:o.source_url, status:'interested' };
+          Object.keys(payload).forEach(k=>{ if(payload[k]==null||payload[k]==='') delete payload[k]; });
+          const created = await this.apiJson('/me/applications', {method:'POST', body:JSON.stringify(payload)});
+          if(created){ this.savedRefs.push(o.id); this.showToast('Saved to your pipeline ✓'); }
+          else{ this.showToast('Could not save — try again'); }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

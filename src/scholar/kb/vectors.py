@@ -204,6 +204,24 @@ class VectorStore:
         self._client.upsert(collection_name=self._collection, points=points)
         log.info("upserted_vectors", n=len(points))
 
+    def scroll_all(self, limit: int = 1000) -> list[Opportunity]:
+        """Plain listing of the KB (no query vector) — powers the Browse page.
+        Lean retention keeps the collection small, so one bounded scroll is fine."""
+        self.ensure_collection()
+        points, _ = self._client.scroll(
+            collection_name=self._collection, limit=limit, with_payload=True
+        )
+        out: list[Opportunity] = []
+        for p in points:
+            payload = dict(p.payload or {})
+            payload.pop("opp_id", None)
+            payload.pop("text", None)
+            try:
+                out.append(Opportunity.model_validate(payload))
+            except Exception:  # noqa: BLE001 - skip malformed rows
+                continue
+        return out
+
     def count(self) -> int:
         """Number of opportunities currently in the vector store (KB size)."""
         try:

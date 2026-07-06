@@ -40,6 +40,7 @@ try:
     from ..auth.router import router as auth_router
     from ..db import init_db
 
+    from .kb import router as kb_router
     from .me import router as me_router
     from .surf import router as surf_router
 
@@ -135,6 +136,7 @@ if _WEB_ENABLED:
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(surf_router)
+    app.include_router(kb_router)
 
 
 @app.get("/health")
