@@ -26,12 +26,13 @@ def temperature(role: Role) -> float:
 
 
 def route(role: Role) -> tuple[str, float]:
-    """Return ``(model_name, temperature)`` for a role, using the primary provider.
+    """Return ``(model_name, temperature)`` for a role, using the role's
+    preferred provider (LLM_PROVIDER_<ROLE>, else the pool head).
 
     Kept for callers that just want "the model for this role" (e.g. prompt-family
     detection). Actual inference iterates the whole provider pool — see
     ``llm.client`` and ``llm.providers``.
     """
-    from .providers import primary  # lazy import to avoid an import cycle
+    from .providers import provider_for  # lazy import to avoid an import cycle
 
-    return primary().model_for(role), _TEMPERATURE[role]
+    return provider_for(role).model_for(role), _TEMPERATURE[role]

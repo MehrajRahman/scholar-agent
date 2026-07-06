@@ -319,10 +319,12 @@ class LLMClient:
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(min=1, max=8))
     async def _with_failover(
-        self, call: Callable[[ProviderConfig, AsyncOpenAI], Awaitable[R]]
+        self, call: Callable[[ProviderConfig, AsyncOpenAI], Awaitable[R]], role: Role
     ) -> R:
+        from .providers import providers_for
+
         last: Exception | None = None
-        for provider in self._providers:
+        for provider in providers_for(role):
             try:
                 await self._limiter.acquire()  # pace under the RPM ceiling
                 async with self._sem:
@@ -348,7 +350,7 @@ class LLMClient:
             )
             return resp.choices[0].message.content or ""
 
-        return await self._with_failover(call)
+        return await self._with_failover(call, role)
 
     async def structured(
         self,
@@ -412,7 +414,7 @@ class LLMClient:
                     continue
             raise last or RuntimeError("structured() exhausted all request variants")
 
-        return await self._with_failover(call)
+        return await self._with_failover(call, role)
 
 
 @lru_cache

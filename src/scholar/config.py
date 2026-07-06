@@ -100,6 +100,14 @@ class Settings(BaseSettings):
     llm_rpm_limit: int = Field(25, alias="LLM_RPM_LIMIT")   # stay safely below 30/min
     llm_max_retries: int = Field(6, alias="LLM_MAX_RETRIES")  # wait out token-window 429s
 
+    # Per-role preferred provider (name from providers.json). Spreading roles
+    # across FREE providers multiplies total free capacity: e.g. FAST/extraction
+    # (frequent, big payloads) -> gemini's 1M-TPM budget, HEAVY -> groq's 70B.
+    # Empty = pool order. Full failover to the rest of the pool is kept.
+    llm_provider_heavy: str | None = Field(None, alias="LLM_PROVIDER_HEAVY")
+    llm_provider_fast: str | None = Field(None, alias="LLM_PROVIDER_FAST")
+    llm_provider_scribe: str | None = Field(None, alias="LLM_PROVIDER_SCRIBE")
+
     @property
     def embedding_dim(self) -> int:
         # Vector width must match the chosen bge model, or Qdrant upserts fail.

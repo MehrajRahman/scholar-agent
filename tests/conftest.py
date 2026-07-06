@@ -13,6 +13,10 @@ import os
 os.environ["MAX_REFLECTION_LOOPS"] = "2"
 os.environ["MATCH_SCORE_THRESHOLD"] = "55"
 os.environ["TOP_K_OPPORTUNITIES"] = "4"
+# No per-role provider preference during tests (the dev .env may set one).
+os.environ["LLM_PROVIDER_HEAVY"] = ""
+os.environ["LLM_PROVIDER_FAST"] = ""
+os.environ["LLM_PROVIDER_SCRIBE"] = ""
 
 from scholar.config import get_settings  # noqa: E402
 from scholar.llm.providers import load_providers  # noqa: E402

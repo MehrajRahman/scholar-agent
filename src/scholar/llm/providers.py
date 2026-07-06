@@ -129,3 +129,27 @@ def load_providers() -> list[ProviderConfig]:
 
 def primary() -> ProviderConfig:
     return load_providers()[0]
+
+
+def providers_for(role: Role) -> list[ProviderConfig]:
+    """Provider pool ordered for ``role``.
+
+    Free tiers are budget-limited per provider, so spreading roles across
+    providers (e.g. FAST/extraction -> Gemini's big token budget, HEAVY ->
+    Groq's 70B) multiplies the total free capacity. ``LLM_PROVIDER_<ROLE>``
+    names the preferred provider; it is moved to the front, everything else
+    stays as fallback in pool order. Unknown names are ignored.
+    """
+    pool = load_providers()
+    pref = getattr(get_settings(), f"llm_provider_{role.value}", None)
+    if pref:
+        preferred = [p for p in pool if p.name == pref]
+        if preferred:
+            return preferred + [p for p in pool if p.name != pref]
+        log.warning("unknown_role_provider", role=role.value, wanted=pref)
+    return pool
+
+
+def provider_for(role: Role) -> ProviderConfig:
+    """The first-choice provider for a role (prompt-family detection etc.)."""
+    return providers_for(role)[0]
