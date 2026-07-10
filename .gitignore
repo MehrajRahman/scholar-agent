@@ -21,6 +21,10 @@ providers.json
 prov
 *.pem
 *.key
+.out
+.aux
+.tex
+.pdf
 
 # ── Tooling / editor / OS ───────────────────────────────────────────────────
 .claude/
